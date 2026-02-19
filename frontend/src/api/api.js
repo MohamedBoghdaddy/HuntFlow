@@ -3,7 +3,7 @@ import axios from 'axios';
 // Create an axios instance configured with the base URL pointing to the
 // backend API. You can override the URL via Vite's environment variables
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL ,
 });
 
 // Automatically attach the JWT token stored in localStorage to each
