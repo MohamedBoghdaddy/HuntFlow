@@ -1,4 +1,3 @@
-``
 # HuntFlow 🤖
 
 ![Build](https://img.shields.io/github/actions/workflow/status/MohamedBoghdaddy/hkiiapply/ci.yml)
@@ -99,6 +98,3 @@ This project is licensed under the MIT License. See the [`LICENSE`](LICENSE) fil
 ---
 
 **HuntFlow** helps you stay organized and move faster: discover jobs, refine your CV, and track every application in one place.
-
-```
-```
