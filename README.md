@@ -1,4 +1,4 @@
-````md
+``
 # HuntFlow 🤖
 
 ![Build](https://img.shields.io/github/actions/workflow/status/MohamedBoghdaddy/hkiiapply/ci.yml)
@@ -38,26 +38,26 @@ To set up HuntFlow locally, follow these steps:
 
 1. **Clone the Repository**:
 
-   ```bash
+   ``
    git clone https://github.com/MohamedBoghdaddy/hkiiapply.git
    cd hkiiapply
-````
+``
 
 2. **Install Dependencies**:
 
    * **Backend**:
 
-     ```bash
+     ``
      cd backend
      npm install
-     ```
+     ``
 
    * **Frontend**:
 
-     ```bash
+     ``
      cd ../frontend
      npm install
-     ```
+     ``
 
 3. **Set Up Environment Variables**:
 
@@ -73,16 +73,16 @@ To set up HuntFlow locally, follow these steps:
 
    * **Backend**:
 
-     ```bash
+     ``
      npm start
-     ```
+     ``
 
    * **Frontend**:
 
-     ```bash
+     ``
      cd ../frontend
      npm start
-     ```
+     ``
 
    The frontend should now be running on `http://localhost:3000` and the backend on `http://localhost:5000`.
 
