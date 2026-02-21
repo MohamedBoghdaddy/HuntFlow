@@ -1,9 +1,3 @@
-/*
- * Express application setup. This module configures middleware, routes
- * and error handlers. It does not start the HTTP server itself; see
- * server.js for that.
- */
-
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
@@ -19,9 +13,20 @@ import applicationRoutes from "./routes/applicationRoutes.js";
 
 const app = express();
 
-// Enable CORS for all origins by default; customise for production.
-app.use(cors());
+if (!config.sessionSecret) {
+  throw new Error("SESSION_SECRET is missing. Set it in Render env vars.");
+}
+if (!config.mongoUrl) {
+  throw new Error("MONGO_URL is missing. Set it in Render env vars.");
+}
 
+// Enable CORS for all origins by default; customise for production.
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "https://hunterflow.netlify.app"],
+    credentials: true,
+  }),
+);
 // Logging HTTP requests in development.
 if (config.env !== "test") {
   app.use(morgan("dev"));
@@ -36,12 +41,16 @@ app.use(
   session({
     secret: config.sessionSecret,
     resave: false,
+    proxy: true,
     saveUninitialized: false,
     store: MongoStore.create({
       mongoUrl: config.mongoUrl, // <-- uses MONGO_URL from .env via config
     }),
     cookie: {
-      maxAge: 1000 * 60 * 60 * 24, // 1 day
+      maxAge: 1000 * 60 * 60 * 24,
+      httpOnly: true,
+      sameSite: "none", // cross-site cookies (Netlify -> Render)
+      secure: true, // required when sameSite is none
     },
   }),
 );
