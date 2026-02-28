@@ -1,60 +1,79 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Container,
-  Typography,
-  Grid,
-  Paper,
-  Stack,
-  Button,
-  Box,
-} from '@mui/material';
-import api from '../api/api';
+import React, { useEffect, useMemo, useState } from "react";
+import { Container, Typography, Grid, Paper, Stack, Button, Box } from "@mui/material";
+import apiClient, { normalizeApiError } from "../api/api";
 
-/**
- * ApplicationTracker displays the user's applications grouped by their
- * current status (saved, queued, applied, interview, offer, rejected).
- * Users can advance the status of an application via buttons. Drag
- * and drop could be added in a future iteration.
- */
 function ApplicationTracker() {
-  const statuses = ['saved', 'queued', 'applied', 'interview', 'offer', 'rejected'];
+  const statuses = useMemo(
+    () => ["saved", "queued", "applied", "interview", "offer", "rejected"],
+    [],
+  );
+
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const getAppId = (app) => app?._id || app?.id || app?.application_id;
+
   useEffect(() => {
+    let alive = true;
+
     async function fetchApps() {
       try {
-        const res = await api.get('/applications');
-        setApplications(res.data.applications);
+        // Works whether baseURL already includes /api or not
+        const res = await apiClient.get("/applications");
+
+        // Be tolerant to different backends/shapes
+        const list =
+          res?.data?.applications ||
+          res?.data?.items ||
+          res?.data?.data?.applications ||
+          res?.data ||
+          [];
+
+        if (alive) setApplications(Array.isArray(list) ? list : []);
       } catch (err) {
-        console.error('Failed to fetch applications', err);
+        console.error("Failed to fetch applications", err);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     }
+
     fetchApps();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  // Update an application's status and refresh state
   const moveToStatus = async (applicationId, newStatus) => {
     try {
-      await api.put(`/applications/${applicationId}`, { status: newStatus });
+      const res = await apiClient.put(`/applications/${applicationId}`, { status: newStatus });
+
+      // If backend returns updated object, prefer it
+      const updated =
+        res?.data?.application ||
+        res?.data?.data?.application ||
+        res?.data;
+
       setApplications((prev) =>
-        prev.map((app) => (app._id === applicationId ? { ...app, status: newStatus } : app)),
+        prev.map((app) => {
+          const id = getAppId(app);
+          if (id !== applicationId) return app;
+          if (updated && typeof updated === "object") return { ...app, ...updated };
+          return { ...app, status: newStatus };
+        }),
       );
     } catch (err) {
-      console.error('Failed to update application status', err);
-      alert(err.response?.data?.error || 'Update failed');
+      console.error("Failed to update application status", err);
+      alert(normalizeApiError(err));
     }
   };
 
-  // Group applications by status
-  const grouped = statuses.reduce((acc, status) => {
-    acc[status] = applications.filter((app) => app.status === status);
-    return acc;
-  }, {});
+  const grouped = useMemo(() => {
+    return statuses.reduce((acc, status) => {
+      acc[status] = applications.filter((app) => (app?.status || "saved") === status);
+      return acc;
+    }, {});
+  }, [applications, statuses]);
 
-  // Determine the next status in the pipeline for a given status
   const nextStatus = (status) => {
     const idx = statuses.indexOf(status);
     return idx >= 0 && idx < statuses.length - 1 ? statuses[idx + 1] : null;
@@ -65,41 +84,56 @@ function ApplicationTracker() {
       <Typography variant="h4" gutterBottom>
         Applications Tracker
       </Typography>
+
       {loading ? (
         <Typography>Loading...</Typography>
       ) : (
         <Grid container spacing={2}>
           {statuses.map((status) => (
             <Grid item xs={12} sm={6} md={4} lg={2} key={status}>
-              <Paper elevation={3} sx={{ p: 2, minHeight: '60vh' }}>
-                <Typography variant="h6" align="center" gutterBottom sx={{ textTransform: 'capitalize' }}>
+              <Paper elevation={3} sx={{ p: 2, minHeight: "60vh" }}>
+                <Typography
+                  variant="h6"
+                  align="center"
+                  gutterBottom
+                  sx={{ textTransform: "capitalize" }}
+                >
                   {status}
                 </Typography>
+
                 <Stack spacing={1}>
-                  {grouped[status].length === 0 ? (
+                  {grouped[status]?.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" align="center">
                       None
                     </Typography>
                   ) : (
-                    grouped[status].map((app) => (
-                      <Box key={app._id} sx={{ border: '1px solid #eee', borderRadius: 1, p: 1 }}>
-                        <Typography variant="subtitle2">{app.job?.title || 'Unknown'}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {app.job?.company}
-                        </Typography>
-                        {nextStatus(app.status) && (
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            fullWidth
-                            sx={{ mt: 1 }}
-                            onClick={() => moveToStatus(app._id, nextStatus(app.status))}
-                          >
-                            Move to {nextStatus(app.status)}
-                          </Button>
-                        )}
-                      </Box>
-                    ))
+                    grouped[status].map((app) => {
+                      const id = getAppId(app);
+                      const n = nextStatus(app.status);
+
+                      return (
+                        <Box key={id} sx={{ border: "1px solid #eee", borderRadius: 1, p: 1 }}>
+                          <Typography variant="subtitle2">
+                            {app?.job?.title || app?.title || "Unknown"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {app?.job?.company || app?.company || ""}
+                          </Typography>
+
+                          {n && (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              fullWidth
+                              sx={{ mt: 1 }}
+                              onClick={() => moveToStatus(id, n)}
+                            >
+                              Move to {n}
+                            </Button>
+                          )}
+                        </Box>
+                      );
+                    })
                   )}
                 </Stack>
               </Paper>

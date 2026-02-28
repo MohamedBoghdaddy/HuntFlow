@@ -1,33 +1,40 @@
+// frontend/src/api/api.js
 import axios from "axios";
 
 const hostname = typeof window !== "undefined" ? window.location.hostname : "";
 
-// 1) Prefer explicit env var override (Netlify/Vite)
-const ENV_ORIGIN = import.meta?.env?.VITE_API_URL;
+// Local defaults
+const LOCAL_NODE = "http://localhost:4000";
+const LOCAL_PY = "http://127.0.0.1:8000";
 
-// 2) Fallback to hostname-based routing
-const HOST_ORIGIN =
-  hostname === "localhost"
-    ? "http://localhost:4000"
-    : hostname.includes("render")
-      ? "https://huntflow-up9r.onrender.com"  
-      : "https://huntflow-up9r.onrender.com";
+// Optional env overrides (Vite)
+// VITE_NODE_API_URL=http://localhost:4000
+// VITE_PY_API_URL=http://127.0.0.1:8000
+const ENV_NODE = import.meta?.env?.VITE_NODE_API_URL;
+const ENV_PY = import.meta?.env?.VITE_PY_API_URL;
 
-export const API_ORIGIN = ENV_ORIGIN || HOST_ORIGIN;
+// Production origin (Render)
+const PROD_ORIGIN = "https://huntflow-up9r.onrender.com";
 
-// HuntFlow backend routes are mounted under /api
-export const API_BASE_URL = `${API_ORIGIN}/api`;
+// Pick origins
+export const NODE_ORIGIN =
+  hostname === "localhost" ? ENV_NODE || LOCAL_NODE : PROD_ORIGIN;
 
-// ✅ robust token getter (supports multiple storage formats)
+export const PY_ORIGIN =
+  hostname === "localhost" ? ENV_PY || LOCAL_PY : PROD_ORIGIN;
+
+// Node routes mounted under /api, FastAPI routes are direct (/jobs, /cv, /health)
+export const NODE_BASE_URL = `${NODE_ORIGIN}/api`;
+export const PY_BASE_URL = PY_ORIGIN;
+
+// Token helpers
 const getToken = () => {
   if (typeof window === "undefined") return null;
 
-  // 1) direct token key
   const direct =
     localStorage.getItem("token") || sessionStorage.getItem("token");
   if (direct) return direct;
 
-  // 2) user object (common pattern)
   const rawUser =
     localStorage.getItem("user") || sessionStorage.getItem("user");
   if (rawUser) {
@@ -73,9 +80,19 @@ function attachInterceptors(client) {
   return client;
 }
 
-export const apiClient = attachInterceptors(
+// Node client (auth, applications)
+export const nodeClient = attachInterceptors(
   axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: NODE_BASE_URL,
+    withCredentials: true,
+    timeout: 20000,
+  }),
+);
+
+// Python client (jobs, cv)
+export const pyClient = attachInterceptors(
+  axios.create({
+    baseURL: PY_BASE_URL,
     withCredentials: true,
     timeout: 20000,
   }),
@@ -91,4 +108,36 @@ export function normalizeApiError(err) {
   );
 }
 
-export default apiClient;
+// Convenience wrappers
+export const api = {
+  node: {
+    auth: {
+      login: (payload) => nodeClient.post("/auth/login", payload),
+      register: (payload) => nodeClient.post("/auth/register", payload),
+      me: () => nodeClient.get("/auth/me"),
+      logout: () => nodeClient.post("/auth/logout"),
+    },
+    applications: {
+      list: () => nodeClient.get("/applications"),
+      create: (payload) => nodeClient.post("/applications", payload),
+      update: (id, payload) => nodeClient.put(`/applications/${id}`, payload),
+    },
+  },
+
+  py: {
+    health: () => pyClient.get("/health"),
+    jobs: {
+      search: (payload) => pyClient.post("/jobs/search", payload),
+      extract: (payload) => pyClient.post("/jobs/extract", payload),
+    },
+    cv: {
+      atsScore: (payload) => pyClient.post("/cv/ats-score", payload),
+      enhance: (payload) => pyClient.post("/cv/enhance", payload),
+      resume: (payload) => pyClient.post("/cv/resume", payload),
+      coach: (payload) => pyClient.post("/cv/coach", payload),
+    },
+  },
+};
+
+// Keep default export as the Node client for existing imports
+export default nodeClient;

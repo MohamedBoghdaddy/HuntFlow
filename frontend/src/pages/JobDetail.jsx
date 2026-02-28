@@ -1,48 +1,68 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  Container,
-  Typography,
-  Paper,
-  Button,
-  Box,
-  Stack,
-} from '@mui/material';
-import api from '../api/api';
+// frontend/src/pages/JobDetail.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { Container, Typography, Paper, Button, Stack } from "@mui/material";
+import { api, normalizeApiError } from "../api/api";
 
-/**
- * JobDetail shows the full details of a selected job. Users can save
- * it to their applications pipeline or proceed to an apply flow (not
- * implemented yet).
- */
 function JobDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const cacheKey = useMemo(
+    () => `hf_job_${decodeURIComponent(id || "")}`,
+    [id],
+  );
+
   useEffect(() => {
-    async function fetchJob() {
+    let alive = true;
+
+    async function load() {
       try {
-        const res = await api.get(`/jobs/${id}`);
-        setJob(res.data.job);
-      } catch (err) {
-        console.error('Failed to fetch job', err);
+        const raw =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem(cacheKey)
+            : null;
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (alive) setJob(cached);
+        } else {
+          if (alive) setJob(null);
+        }
+      } catch {
+        if (alive) setJob(null);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     }
-    fetchJob();
-  }, [id]);
+
+    load();
+    return () => {
+      alive = false;
+    };
+  }, [cacheKey]);
+
+  const getJobId = (j) =>
+    j?.job_url || j?.apply_url || j?.url || decodeURIComponent(id || "");
 
   const handleSave = async () => {
     try {
-      await api.post('/applications', { jobId: id });
-      alert('Job saved to your pipeline');
+      const jobId = getJobId(job);
+      await api.node.applications.create({ jobId });
+      alert("Job saved to your pipeline");
     } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to save application';
-      alert(msg);
+      alert(normalizeApiError(err));
     }
+  };
+
+  const handleApply = async () => {
+    const url = job?.apply_url || job?.job_url || job?.url;
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    alert("Apply link not available for this job yet");
   };
 
   return (
@@ -54,24 +74,33 @@ function JobDetail() {
       ) : (
         <Paper elevation={3} sx={{ p: 4 }}>
           <Typography variant="h4" gutterBottom>
-            {job.title}
+            {job.title || "Job"}
           </Typography>
+
           <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-            {job.company} {job.location ? `- ${job.location}` : ''}
+            {job.company || ""}
+            {job.location ? ` - ${job.location}` : ""}
           </Typography>
-          {job.salary && (
+
+          {job.posted_at && (
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              Salary: {job.salary?.min || ''}–{job.salary?.max || ''} {job.salary?.currency || ''}
+              Posted: {job.posted_at}
             </Typography>
           )}
-          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>
-            {job.description || 'No description provided.'}
+
+          <Typography variant="body1" sx={{ whiteSpace: "pre-wrap", mb: 2 }}>
+            {job.description ||
+              job.description_snippet ||
+              "No description provided."}
           </Typography>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <Button variant="contained" onClick={handleSave}>
               Save
             </Button>
-            <Button variant="outlined" onClick={() => alert('Apply flow not implemented')}>Apply</Button>
+            <Button variant="outlined" onClick={handleApply}>
+              Apply
+            </Button>
           </Stack>
         </Paper>
       )}
