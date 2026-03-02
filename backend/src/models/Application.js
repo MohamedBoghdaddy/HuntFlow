@@ -1,5 +1,9 @@
 import mongoose from "mongoose";
 
+// Schema definition for an Application document. Each application links a
+// user to a job and tracks the status throughout the pipeline (saved,
+// queued, applied, interview, offer, rejected). Additional metadata such
+// as resume versions, cover letters and interview notes are stored here.
 const applicationSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
