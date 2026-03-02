@@ -8,8 +8,13 @@ from urllib.parse import urljoin
 import httpx
 from bs4 import BeautifulSoup
 
+<<<<<<< HEAD
 from services.core.config import settings
 from services.responses.jobs import JobItem
+=======
+from core.config import settings
+from responses.jobs import JobItem
+>>>>>>> 7c3fa22b37cd9b1ad35777a3dd75ba8e86722e70
 
 
 APPLY_WORDS = re.compile(r"\b(apply|apply now|submit application|easy apply|quick apply)\b", re.I)

@@ -1,7 +1,13 @@
 from fastapi import APIRouter
+<<<<<<< HEAD
 from services.engines.cv_engine import CVEngine
 from services.requests.cv import ATSScoreRequest, EnhanceCVRequest, ResumeBuildRequest, CareerCoachRequest
 from services.responses.cv import JSONResponse, TextResponse
+=======
+from engines.cv_engine import CVEngine
+from requests.cv import ATSScoreRequest, EnhanceCVRequest, ResumeBuildRequest, CareerCoachRequest
+from responses.cv import JSONResponse, TextResponse
+>>>>>>> 7c3fa22b37cd9b1ad35777a3dd75ba8e86722e70
 
 
 router = APIRouter(prefix="/cv", tags=["cv"])

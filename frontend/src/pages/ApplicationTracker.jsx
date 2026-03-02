@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // pages/ApplicationTracker.jsx (MERGED MVP)
 // - Combines: Kanban tracker (MUI) + table/actions app (apply/email/interview prep/manual-effort)
 // - Uses apiClient if available, falls back to fetch(API_BASE)
@@ -30,15 +31,26 @@ import apiClient, { normalizeApiError } from "../api/api";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 export default function ApplicationTracker() {
+=======
+import React, { useEffect, useMemo, useState } from "react";
+import { Container, Typography, Grid, Paper, Stack, Button, Box } from "@mui/material";
+import apiClient, { normalizeApiError } from "../api/api";
+
+function ApplicationTracker() {
+>>>>>>> 7c3fa22b37cd9b1ad35777a3dd75ba8e86722e70
   const statuses = useMemo(
     () => ["saved", "queued", "applied", "interview", "offer", "rejected"],
     [],
   );
 
+<<<<<<< HEAD
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   const [apps, setApps] = useState([]);
+=======
+  const [applications, setApplications] = useState([]);
+>>>>>>> 7c3fa22b37cd9b1ad35777a3dd75ba8e86722e70
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -61,7 +73,10 @@ export default function ApplicationTracker() {
     };
   });
 
+  const getAppId = (app) => app?._id || app?.id || app?.application_id;
+
   useEffect(() => {
+<<<<<<< HEAD
     try {
       localStorage.setItem("applicant_profile", JSON.stringify(applicant));
     } catch {}
@@ -195,6 +210,67 @@ export default function ApplicationTracker() {
     }
     setMessage(res.error || "Failed to update status");
   };
+=======
+    let alive = true;
+
+    async function fetchApps() {
+      try {
+        // Works whether baseURL already includes /api or not
+        const res = await apiClient.get("/applications");
+
+        // Be tolerant to different backends/shapes
+        const list =
+          res?.data?.applications ||
+          res?.data?.items ||
+          res?.data?.data?.applications ||
+          res?.data ||
+          [];
+
+        if (alive) setApplications(Array.isArray(list) ? list : []);
+      } catch (err) {
+        console.error("Failed to fetch applications", err);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    fetchApps();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const moveToStatus = async (applicationId, newStatus) => {
+    try {
+      const res = await apiClient.put(`/applications/${applicationId}`, { status: newStatus });
+
+      // If backend returns updated object, prefer it
+      const updated =
+        res?.data?.application ||
+        res?.data?.data?.application ||
+        res?.data;
+
+      setApplications((prev) =>
+        prev.map((app) => {
+          const id = getAppId(app);
+          if (id !== applicationId) return app;
+          if (updated && typeof updated === "object") return { ...app, ...updated };
+          return { ...app, status: newStatus };
+        }),
+      );
+    } catch (err) {
+      console.error("Failed to update application status", err);
+      alert(normalizeApiError(err));
+    }
+  };
+
+  const grouped = useMemo(() => {
+    return statuses.reduce((acc, status) => {
+      acc[status] = applications.filter((app) => (app?.status || "saved") === status);
+      return acc;
+    }, {});
+  }, [applications, statuses]);
+>>>>>>> 7c3fa22b37cd9b1ad35777a3dd75ba8e86722e70
 
   const nextStatus = (status) => {
     const s = status || "saved";
@@ -275,6 +351,7 @@ export default function ApplicationTracker() {
   const statusOf = (app) => app?.status || "saved";
 
   return (
+<<<<<<< HEAD
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Stack spacing={2}>
         <Stack
@@ -339,6 +416,65 @@ export default function ApplicationTracker() {
                 value={applicant.firstName}
                 onChange={handleApplicantChange}
               />
+=======
+    <Container maxWidth="xl">
+      <Typography variant="h4" gutterBottom>
+        Applications Tracker
+      </Typography>
+
+      {loading ? (
+        <Typography>Loading...</Typography>
+      ) : (
+        <Grid container spacing={2}>
+          {statuses.map((status) => (
+            <Grid item xs={12} sm={6} md={4} lg={2} key={status}>
+              <Paper elevation={3} sx={{ p: 2, minHeight: "60vh" }}>
+                <Typography
+                  variant="h6"
+                  align="center"
+                  gutterBottom
+                  sx={{ textTransform: "capitalize" }}
+                >
+                  {status}
+                </Typography>
+
+                <Stack spacing={1}>
+                  {grouped[status]?.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" align="center">
+                      None
+                    </Typography>
+                  ) : (
+                    grouped[status].map((app) => {
+                      const id = getAppId(app);
+                      const n = nextStatus(app.status);
+
+                      return (
+                        <Box key={id} sx={{ border: "1px solid #eee", borderRadius: 1, p: 1 }}>
+                          <Typography variant="subtitle2">
+                            {app?.job?.title || app?.title || "Unknown"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {app?.job?.company || app?.company || ""}
+                          </Typography>
+
+                          {n && (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              fullWidth
+                              sx={{ mt: 1 }}
+                              onClick={() => moveToStatus(id, n)}
+                            >
+                              Move to {n}
+                            </Button>
+                          )}
+                        </Box>
+                      );
+                    })
+                  )}
+                </Stack>
+              </Paper>
+>>>>>>> 7c3fa22b37cd9b1ad35777a3dd75ba8e86722e70
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <TextField
