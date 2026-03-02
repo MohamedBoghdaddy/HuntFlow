@@ -1,10 +1,14 @@
 import Job from "../models/Job.js";
+// The jobAggregatorService import has been removed to keep the
+// controller CRUD-only. External job synchronisation should be handled
+// by a separate service or script.
+
 
 // List jobs with basic filtering and pagination
+// Supports optional full-text search across title and company fields.
 const getJobs = async (req, res) => {
   try {
     const { page = 1, limit = 20, search = "" } = req.query;
-
     const query = {};
     if (search) {
       query.$or = [
@@ -12,17 +16,13 @@ const getJobs = async (req, res) => {
         { company: new RegExp(search, "i") },
       ];
     }
-
     const pageNum = Number(page);
     const limitNum = Number(limit);
-
     const jobs = await Job.find(query)
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
       .sort({ postedAt: -1 });
-
     const total = await Job.countDocuments(query);
-
     return res.json({ jobs, total });
   } catch (err) {
     return res.status(500).json({ error: "Failed to fetch jobs" });
@@ -33,10 +33,8 @@ const getJobs = async (req, res) => {
 const getJobById = async (req, res) => {
   try {
     const { id } = req.params;
-
     const job = await Job.findById(id);
     if (!job) return res.status(404).json({ error: "Job not found" });
-
     return res.json({ job });
   } catch (err) {
     return res.status(500).json({ error: "Failed to fetch job" });
@@ -48,17 +46,20 @@ const createJob = async (req, res) => {
   try {
     const job = new Job(req.body);
     await job.save();
-
     return res.status(201).json({ job });
   } catch (err) {
-    return res
-      .status(400)
-      .json({ error: "Failed to create job", details: err.message });
+    return res.status(400).json({ error: "Failed to create job", details: err.message });
   }
 };
+
+// NOTE: The syncExternalJobs function has been removed. This controller
+// no longer performs any network calls or synchronises jobs from
+// external APIs. Jobs must be created manually via the POST /api/jobs
+// endpoint or through a separate ingestion service.
 
 export default {
   getJobs,
   getJobById,
   createJob,
+  // syncExternalJobs is intentionally omitted.
 };
