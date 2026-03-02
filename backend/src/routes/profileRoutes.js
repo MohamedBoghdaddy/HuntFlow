@@ -1,14 +1,16 @@
 import express from "express";
 
-import profileController from "../controllers/profileController.js";
-import { authenticateToken } from "../middleware/authMiddleware.js";
-
+// Profile routes placeholder. A real implementation would expose endpoints
+// for retrieving and updating user profiles, resumes, etc. Currently
+// returns a 501 response for all requests.
 const router = express.Router();
 
-// Get the current user's profile
-router.get("/", authenticateToken, profileController.getProfile);
+router.get("/", (req, res) => {
+  res.status(501).json({ error: "Profile retrieval is not implemented." });
+});
 
-// Update the current user's profile
-router.put("/", authenticateToken, profileController.updateProfile);
+router.put("/", (req, res) => {
+  res.status(501).json({ error: "Profile update is not implemented." });
+});
 
 export default router;
