@@ -141,3 +141,7 @@ vite.config.ts.timestamp-*
 
 
 docs
+
+pycache__/
+cpython-*/__pycache__/
+__pycache__/
