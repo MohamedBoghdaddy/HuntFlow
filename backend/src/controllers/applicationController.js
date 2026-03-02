@@ -1,31 +1,23 @@
 import Application from "../models/Application.js";
 import Job from "../models/Job.js";
+// AI-related integrations (ATS application, email outreach and interview prep)
+// have been removed from this controller. The remaining functions implement
+// simple CRUD operations for job applications. If you need to implement
+// automatic applications or recruiter outreach, create separate modules
+// outside of this CRUD layer.
 
 // Create/save an application (add to pipeline)
 const saveApplication = async (req, res) => {
   try {
     const { jobId } = req.body;
-
     const job = await Job.findById(jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
-
-    const existing = await Application.findOne({
-      user: req.user.id,
-      job: jobId,
-    });
-
+    const existing = await Application.findOne({ user: req.user.id, job: jobId });
     if (existing) {
       return res.status(400).json({ error: "Application already exists" });
     }
-
-    const application = new Application({
-      user: req.user.id,
-      job: jobId,
-      status: "saved",
-    });
-
+    const application = new Application({ user: req.user.id, job: jobId, status: "saved" });
     await application.save();
-
     return res.status(201).json({ application });
   } catch (err) {
     return res.status(500).json({ error: "Failed to save application" });
@@ -38,7 +30,6 @@ const getApplications = async (req, res) => {
     const apps = await Application.find({ user: req.user.id })
       .populate("job")
       .sort({ createdAt: -1 });
-
     return res.json({ applications: apps });
   } catch (err) {
     return res.status(500).json({ error: "Failed to fetch applications" });
@@ -50,20 +41,10 @@ const updateApplicationStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-
-    const validStatuses = [
-      "saved",
-      "queued",
-      "applied",
-      "interview",
-      "offer",
-      "rejected",
-    ];
-
+    const validStatuses = ["saved", "queued", "applied", "interview", "offer", "rejected"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
-
     const application = await Application.findOneAndUpdate(
       { _id: id, user: req.user.id },
       {
@@ -77,18 +58,25 @@ const updateApplicationStatus = async (req, res) => {
       },
       { new: true },
     );
-
-    if (!application)
-      return res.status(404).json({ error: "Application not found" });
-
+    if (!application) return res.status(404).json({ error: "Application not found" });
     return res.json({ application });
   } catch (err) {
     return res.status(500).json({ error: "Failed to update application" });
   }
 };
 
+/*
+ * The following functions were previously used to integrate with external
+ * applicant tracking systems (Greenhouse/Lever), send emails to recruiters,
+ * and request AI-generated interview preparation. These features have
+ * been removed from the CRUD-only backend. If you need to support
+ * automated applications, contact emails or interview prep again, add
+ * corresponding services and controllers.
+ */
+
 export default {
   saveApplication,
   getApplications,
   updateApplicationStatus,
+  // AI-related actions have been removed. Only CRUD functions remain.
 };
