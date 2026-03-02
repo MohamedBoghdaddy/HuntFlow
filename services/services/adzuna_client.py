@@ -6,15 +6,8 @@ import re
 
 import httpx
 
-<<<<<<< HEAD
 from services.core.config import settings
 from services.responses.jobs import JobItem
-=======
-from core.config import settings
-from responses.jobs import JobItem
->>>>>>> 7c3fa22b37cd9b1ad35777a3dd75ba8e86722e70
-
-
 ADZUNA_BASE = "https://api.adzuna.com/v1/api/jobs"
 
 
