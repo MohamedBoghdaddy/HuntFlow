@@ -1,17 +1,20 @@
 import express from "express";
-
 import applicationController from "../controllers/applicationController.js";
 import { authenticateToken } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Save a job as an application (add to pipeline)
+// Create a new application (add a job to the pipeline)
 router.post("/", authenticateToken, applicationController.saveApplication);
 
-// List applications for the current user
+// List all applications for the authenticated user
 router.get("/", authenticateToken, applicationController.getApplications);
 
-// Update application status by ID
+// The following routes have been removed: complex applications, ATS apply,
+// recruiter contact and interview prep. The CRUD-only backend exposes
+// endpoints for saving applications, listing them and updating status.
+
+// Update an application's status
 router.put(
   "/:id",
   authenticateToken,
