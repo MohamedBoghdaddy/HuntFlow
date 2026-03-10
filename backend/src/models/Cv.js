@@ -1,16 +1,26 @@
 import mongoose from "mongoose";
 
-// Schema definition for a CV document. A CV belongs to a user and
-// includes a title and the raw content of the résumé. Additional fields
-// (such as parsed sections or attachments) can be added later.
 const cvSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    title: { type: String, required: true },
-    content: { type: String },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    originalName: String,
+    filePath: String,
+    extractedText: String,
+    analysis: {
+      strengths: [String],
+      weaknesses: [String],
+      missingSkills: [String],
+      recommendedRoles: [String],
+      rewriteSuggestions: [String],
+      atsScore: Number,
+      summary: String,
+    },
   },
   { timestamps: true },
 );
 
-const Cv = mongoose.model("Cv", cvSchema);
-export default Cv;
+export default mongoose.model("CV", cvSchema);
