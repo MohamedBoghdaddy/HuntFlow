@@ -1,0 +1,92 @@
+.career-chat-page {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.career-chat-sidebar {
+  padding: 24px;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  background: #111827;
+}
+
+.coach-card {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.05);
+}
+
+.career-chat-main {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 0;
+}
+
+.chat-bubble {
+  max-width: 75%;
+  padding: 14px 16px;
+  border-radius: 18px;
+  line-height: 1.5;
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+  background: #2563eb;
+  color: white;
+}
+
+.chat-bubble.assistant {
+  align-self: flex-start;
+  background: #1e293b;
+}
+
+.chat-role {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.chat-input-row {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.chat-input-row textarea {
+  resize: none;
+  border: none;
+  outline: none;
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 15px;
+}
+
+.chat-input-row button {
+  border: none;
+  border-radius: 14px;
+  background: #22c55e;
+  color: #052e16;
+  font-weight: 700;
+  cursor: pointer;
+}
