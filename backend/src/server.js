@@ -1,42 +1,132 @@
-/*
- * Entry point for the backend service. Connects to MongoDB and starts
- * the Express server. This file remains largely unchanged from the
- * original implementation but has been duplicated here to provide
- * a self‑contained backend.
- */
-import mongoose from "mongoose";
-import app from "./app.js";
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import morgan from "morgan";
+import bodyParser from "body-parser";
+import session from "express-session";
+import MongoStore from "connect-mongo";
+import cookieParser from "cookie-parser";
 import config from "./config/index.js";
 
-// Terminate the process on unhandled promise rejections. Logging the
-// error helps diagnose issues during startup or runtime.
-process.on("unhandledRejection", (err) => {
-  console.error("UNHANDLED REJECTION:", err);
-  process.exit(1);
-});
-process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT EXCEPTION:", err);
-  process.exit(1);
-});
+import applicationRoutes from "./routes/applicationRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
+import cvRoutes from "./routes/cvRoutes.js";
+import jobRoutes from "./routes/jobRoutes.js";
+import profileRoutes from "./routes/profileRoutes.js";
+import trackRoutes from "./routes/trackRoutes.js";
 
-async function startServer() {
-  try {
-    const mongoUrl = config.mongoUrl || process.env.MONGO_URL || process.env.MONGODB_URI;
-    if (!mongoUrl) {
-      throw new Error("Missing Mongo connection string. Set MONGO_URL in your environment.");
-    }
-    const port = Number(process.env.PORT) || Number(config.port) || 4000;
-    await mongoose.connect(mongoUrl);
-    console.log("Connected to MongoDB");
-    app.listen(port, "0.0.0.0", () => {
-      console.log(
-        `Server running in ${config.env || process.env.NODE_ENV || "production"} mode on port ${port}`,
-      );
-    });
-  } catch (err) {
-    console.error("Failed to start server:", err);
-    process.exit(1);
-  }
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 4000;
+
+app.use(cookieParser());
+
+// Validate critical env/config values
+if (!config.sessionSecret) {
+  throw new Error("SESSION_SECRET is missing. Set it in your environment.");
 }
 
-startServer();
+if (!config.mongoUrl) {
+  throw new Error("MONGO_URL is missing. Set it in your environment.");
+}
+
+// CORS setup
+const CLIENT_URL = process.env.CLIENT_URL || config.clientUrl;
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://hunterflow.netlify.app",
+  CLIENT_URL,
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error(`CORS blocked origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Cache-Control",
+    "Pragma",
+    "Expires",
+    "x-request-id",
+    "Accept",
+    "X-Requested-With",
+  ],
+  exposedHeaders: ["Content-Disposition", "Content-Type"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+// Logging
+if (config.env !== "test") {
+  app.use(morgan("dev"));
+}
+
+// Body parsing
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Static uploads
+app.use("/uploads", express.static("uploads"));
+
+// Session management
+app.use(
+  session({
+    secret: config.sessionSecret,
+    resave: false,
+    proxy: true,
+    saveUninitialized: false,
+    store: MongoStore.create({ mongoUrl: config.mongoUrl }),
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24,
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+    },
+  }),
+);
+
+// Routes
+app.use("/api/applications", applicationRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/cv", cvRoutes);
+app.use("/api/jobs", jobRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/tracks", trackRoutes);
+
+// Health check
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+// 404 handler
+app.use((req, res, next) => {
+  const err = new Error("Not Found");
+  err.status = 404;
+  next(err);
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  const status = err.status || 500;
+  const message = err.message || "Internal server error";
+  console.error("ERROR:", { status, message, stack: err.stack });
+  res.status(status).json({ error: message });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+export default app;
