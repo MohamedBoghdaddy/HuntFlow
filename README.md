@@ -1,8 +1,5 @@
 # HuntFlow 🤖
 
-![Build](https://img.shields.io/github/actions/workflow/status/MohamedBoghdaddy/hkiiapply/ci.yml)
-![License](https://img.shields.io/github/license/MohamedBoghdaddy/hkiiapply)
-
 **HuntFlow** is an all-in-one job hunt companion: aggregate jobs, analyze your CV, track applications, and apply faster with a clean pipeline dashboard.
 
 ## ⚙️ Tech Stack
@@ -25,10 +22,10 @@
 
 The workflow is designed to be simple and fast. Here are some visuals to illustrate the process:
 
-![Job Application Process](https://path/to/application-process-gif.gif)  
+![Job Application Process](./images/JobApplication.png)  
 *End-to-end job hunt workflow*
 
-![Dashboard](https://path/to/dashboard-screenshot.png)  
+![Dashboard](./images/dashboard.png)  
 *Pipeline dashboard for analytics and tracking*
 
 ## 🛠️ Installation
