@@ -12,3 +12,8 @@ webdriver-manager==4.0.2
 twocaptcha==0.0.1
 python-anticaptcha==1.0.0
 python-dotenv==1.0.1
+chromadb==0.5.23
+sentence-transformers==3.3.1
+numpy==2.1.3
+scikit-learn==1.5.2
+requests==2.32.3
