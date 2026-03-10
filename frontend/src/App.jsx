@@ -1,10 +1,3 @@
-// App.jsx (MERGED)
-// - Combines your simple nav+routes app with the bigger auth + navbar app
-// - Public routes: /, /login, /register, /search
-// - Private routes: /dashboard, /jobs, /jobs/:id, /applications, /profile
-// - Keeps NavBar and AuthContext PrivateRoute
-// - Adds a small Loading screen while auth is resolving
-
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -17,7 +10,8 @@ import JobFeed from "./pages/JobFeed";
 import JobDetail from "./pages/JobDetail";
 import ApplicationTracker from "./pages/ApplicationTracker";
 import Profile from "./pages/Profile";
-import JobSearch from "./pages/JobSearch.jsx";
+import JobSearch from "./pages/JobSearch";
+import CareerCoachChatPage from "./pages/CareerCoachChatPage";
 
 import { useAuth } from "./contexts/AuthContext";
 
@@ -91,6 +85,15 @@ export default function App() {
           element={
             <PrivateRoute>
               <Profile />
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/career-coach"
+          element={
+            <PrivateRoute>
+              <CareerCoachChatPage />
             </PrivateRoute>
           }
         />
