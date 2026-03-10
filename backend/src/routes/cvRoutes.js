@@ -1,22 +1,19 @@
 import express from "express";
-import cvController from "../controllers/cvController.js";
-import { authenticateToken } from "../middleware/authMiddleware.js";
+import multer from "multer";
+import authMiddleware from "../middleware/authMiddleware.js";
+import { uploadCv } from "../controllers/cvController.js";
 
 const router = express.Router();
 
-// Create a new CV
-router.post("/", authenticateToken, cvController.createCv);
+const storage = multer.diskStorage({
+  destination: "uploads/",
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
 
-// List all CVs for the authenticated user
-router.get("/", authenticateToken, cvController.getCvs);
+const upload = multer({ storage });
 
-// Get a single CV
-router.get("/:id", authenticateToken, cvController.getCvById);
-
-// Update a CV
-router.put("/:id", authenticateToken, cvController.updateCv);
-
-// Delete a CV
-router.delete("/:id", authenticateToken, cvController.deleteCv);
+router.post("/upload", authMiddleware, upload.single("cv"), uploadCv);
 
 export default router;
