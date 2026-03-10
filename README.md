@@ -22,7 +22,7 @@
 
 The workflow is designed to be simple and fast. Here are some visuals to illustrate the process:
 
-![Job Application Process](./images/JobApplication.png)  
+![Job Application Process](./images/application.png)  
 *End-to-end job hunt workflow*
 
 ![Dashboard](./images/dashboard.png)  
