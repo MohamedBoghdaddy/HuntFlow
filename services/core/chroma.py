@@ -1,19 +1,21 @@
-import chromadb
-from chromadb.utils import embedding_functions
-
-# Create collection
-client = chromadb.Client()
-collection = client.create_collection(
-    name="jobs",
-    embedding_function=embedding_functions.GooglePalmEmbeddingFunction(api_key=os.getenv("GEMINI_API_KEY"))
+from services.utils.chromadb import (
+    add_documents,
+    delete_collection,
+    delete_documents,
+    get_chroma_client,
+    get_documents,
+    get_or_create_collection,
+    query_documents,
+    update_documents,
 )
 
-# Add job embeddings
-collection.add(
-    documents=[job.description for job in jobs],
-    metadatas=[{"title": job.title, "company": job.company, ...}],
-    ids=[str(job.id) for job in jobs]
-)
-
-# Query with CV text
-results = collection.query(query_texts=[cv_text], n_results=5)
+__all__ = [
+    "get_chroma_client",
+    "get_or_create_collection",
+    "add_documents",
+    "query_documents",
+    "get_documents",
+    "update_documents",
+    "delete_documents",
+    "delete_collection",
+]
