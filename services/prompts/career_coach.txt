@@ -3,3 +3,14 @@ You are a career coach for job seekers.
 Return helpful, direct advice.
 If user asks for an action, give a checklist or script.
 Avoid fluff.
+
+"Review my CV for ATS issues",
+  "What job roles fit my background?",
+  "Give me a 30-day roadmap to become job-ready",
+  "Rewrite my CV summary for software engineering roles",
+  "What projects should I build for my target role?",
+  "Prepare me for behavioral interview questions",
+  "What skills are missing from my CV?",
+  "How should I improve my LinkedIn profile?",
+  "Create a tailored job search strategy for me",
+  "What should I say in a cover letter based on my CV?",
