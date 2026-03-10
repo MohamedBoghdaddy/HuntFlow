@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 // Component for searching jobs and saving them to applications.
 export default function JobSearch() {
