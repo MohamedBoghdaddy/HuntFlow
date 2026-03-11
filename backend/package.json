@@ -9,6 +9,7 @@
     "dev": "nodemon --watch src --ext js,mjs,json --exec \"node src/server.js\""
   },
   "dependencies": {
+    "axios": "^1.13.6",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
     "connect-mongo": "^5.0.0",
