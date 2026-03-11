@@ -1,14 +1,16 @@
-# routes/jobs.py
-# Full MVP: merged + enhanced /jobs endpoints
-# - Unified router
-# - Supports both:
-#   1) Multi-provider search via JobSearchEngine
-#   2) Adzuna-only search with country expansion + paging
-# - Robust validation, dedupe, caps, timeouts
-# - Extract apply links from URLs with safe fallbacks
+"""
+routes/jobs.py
+
+Changes:
+  - /search checks the 1-hour job cache before hitting Adzuna
+  - /multi-search uses JobSearchEngine with built-in ROI order + cache
+  - /extract supports safe fallback per URL
+  - cache admin endpoints added
+"""
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
@@ -20,9 +22,13 @@ from services.core.config import settings
 from services.engines.job_search_engine import JobSearchEngine
 from services.services.adzuna_client import AdzunaClient
 from services.services.job_url_extractor import extract_job
+from services.utils.job_cache import get_default_cache
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 engine = JobSearchEngine()
+_cache = get_default_cache()
 
 
 class JobItem(BaseModel):
@@ -41,7 +47,6 @@ class JobItem(BaseModel):
         url = (self.apply_url or self.job_url or "").strip().lower()
         if url:
             return url
-
         return f"{self.title}|{self.company}|{self.location}".strip().lower()
 
 
@@ -62,12 +67,10 @@ class JobSearchRequest(BaseModel):
     @classmethod
     def normalize_countries(cls, value: List[str]) -> List[str]:
         out: List[str] = []
-
         for country in value or []:
             cc = str(country).strip().lower()
             if cc:
                 out.append(cc)
-
         return out or ["eg"]
 
     @model_validator(mode="after")
@@ -84,7 +87,7 @@ class MultiSourceSearchRequest(BaseModel):
     limit: int = Field(default=60, ge=5, le=200)
     min_results: int = Field(default=25, ge=1, le=200)
     providers: Optional[List[str]] = None
-    batch_size: int = Field(default=2, ge=1, le=10)
+    batch_size: int = Field(default=3, ge=1, le=10)
     per_provider_limit: int = Field(default=40, ge=5, le=200)
 
 
@@ -92,6 +95,7 @@ class JobSearchResponse(BaseModel):
     query: str
     countries: List[str]
     count: int
+    cached: bool = False
     jobs: List[JobItem]
 
 
@@ -101,16 +105,9 @@ class JobExtractRequest(BaseModel):
     @field_validator("urls")
     @classmethod
     def normalize_urls(cls, value: List[str]) -> List[str]:
-        out: List[str] = []
-
-        for url in value or []:
-            s = str(url).strip()
-            if s:
-                out.append(s)
-
+        out: List[str] = [str(url).strip() for url in (value or []) if str(url).strip()]
         if not out:
             raise ValueError("urls cannot be empty")
-
         return out
 
 
@@ -129,22 +126,16 @@ COUNTRY_MAP: Dict[str, List[str]] = {
 
 def expand_countries(tokens: List[str]) -> List[str]:
     expanded: List[str] = []
-
     for token in tokens:
         normalized = token.strip().lower()
-        if normalized in COUNTRY_MAP:
-            expanded.extend(COUNTRY_MAP[normalized])
-        else:
-            expanded.append(normalized)
+        expanded.extend(COUNTRY_MAP.get(normalized, [normalized]))
 
     seen: Set[str] = set()
     out: List[str] = []
-
     for country in expanded:
         if country and country not in seen:
             seen.add(country)
             out.append(country)
-
     return out
 
 
@@ -156,7 +147,6 @@ def dedupe_jobs(jobs: List[JobItem], cap: Optional[int] = None) -> List[JobItem]
         key = job.stable_key
         if key in seen:
             continue
-
         seen.add(key)
         out.append(job)
 
@@ -215,9 +205,30 @@ def normalize_job_item(item: Any) -> JobItem:
 
 @router.post("/search", response_model=JobSearchResponse)
 async def search_jobs(payload: JobSearchRequest) -> JobSearchResponse:
+    """
+    Adzuna-backed search with cache per request fingerprint.
+    """
     countries = expand_countries(payload.countries)
     if not countries:
         raise HTTPException(status_code=400, detail="No valid countries provided")
+
+    cache_key_providers = [f"adzuna:{c}" for c in sorted(countries)]
+    cached_data = _cache.get(
+        query=payload.query,
+        where=payload.where,
+        providers=cache_key_providers,
+    )
+
+    if cached_data is not None:
+        log.info("job_cache: /search HIT for query=%r where=%r", payload.query, payload.where)
+        jobs = [normalize_job_item(j) for j in cached_data.get("jobs", [])]
+        return JobSearchResponse(
+            query=payload.query,
+            countries=countries,
+            count=len(jobs),
+            cached=True,
+            jobs=jobs,
+        )
 
     client = AdzunaClient()
     jobs: List[JobItem] = []
@@ -241,17 +252,21 @@ async def search_jobs(payload: JobSearchRequest) -> JobSearchResponse:
                     salary_max=payload.salary_max,
                     remote_only=payload.remote_only,
                 )
-            except httpx.HTTPStatusError:
-                continue
-            except httpx.TimeoutException:
-                continue
-            except Exception:
+            except (httpx.HTTPStatusError, httpx.TimeoutException, Exception) as exc:
+                log.warning(
+                    "adzuna search failed for country=%s query=%r page=%d: %s",
+                    country,
+                    payload.query,
+                    page,
+                    exc,
+                )
                 continue
 
             for item in chunk or []:
                 try:
                     country_jobs.append(normalize_job_item(item))
-                except Exception:
+                except Exception as exc:
+                    log.warning("job normalization failed: %s", exc)
                     continue
 
             if len(country_jobs) >= per_country_limit:
@@ -261,16 +276,27 @@ async def search_jobs(payload: JobSearchRequest) -> JobSearchResponse:
 
     jobs = dedupe_jobs(jobs, cap=per_country_limit * len(countries))
 
+    _cache.set(
+        query=payload.query,
+        where=payload.where,
+        providers=cache_key_providers,
+        data={"jobs": [j.model_dump() for j in jobs]},
+    )
+
     return JobSearchResponse(
         query=payload.query,
         countries=countries,
         count=len(jobs),
+        cached=False,
         jobs=jobs,
     )
 
 
 @router.post("/multi-search")
 async def multi_source_search(payload: MultiSourceSearchRequest):
+    """
+    Multi-provider search. Cache is handled inside JobSearchEngine.
+    """
     try:
         result = await engine.search(
             query=payload.query,
@@ -302,3 +328,15 @@ async def extract_apply_links(payload: JobExtractRequest) -> JobExtractedRespons
 
     out = dedupe_jobs(out, cap=200)
     return JobExtractedResponse(count=len(out), jobs=out)
+
+
+@router.delete("/cache")
+async def clear_job_cache():
+    removed = _cache.clear_all()
+    return {"removed": removed}
+
+
+@router.post("/cache/prune")
+async def prune_expired_cache():
+    pruned = _cache.prune_expired()
+    return {"pruned": pruned}
