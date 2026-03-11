@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { nodeClient } from "../api/api";
+import { nodeClient, normalizeApiError } from "../api/api";
+import ChatMessage from "../components/ChatMessage";
+import ChatInput from "../components/ChatInput";
 import "../styles/careerCoachChat.css";
 
 export default function CareerCoachChatPage() {
@@ -13,6 +15,7 @@ export default function CareerCoachChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -22,11 +25,13 @@ export default function CareerCoachChatPage() {
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    const userMessage = { role: "user", content: input };
+    const currentInput = input.trim();
+    const userMessage = { role: "user", content: currentInput };
+
     setMessages((prev) => [...prev, userMessage]);
-    const currentInput = input;
     setInput("");
     setLoading(true);
+    setErrorMessage("");
 
     try {
       const { data } = await nodeClient.post("/chat/send", {
@@ -34,15 +39,27 @@ export default function CareerCoachChatPage() {
         sessionId,
       });
 
-      if (!sessionId && data.sessionId) {
+      if (!sessionId && data?.sessionId) {
         setSessionId(data.sessionId);
       }
 
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply },
+        {
+          role: "assistant",
+          content:
+            data?.reply ||
+            "I received your message, but I could not generate a proper response.",
+        },
       ]);
     } catch (error) {
+      console.error("Career coach chat error:", error);
+
+      const friendlyError =
+        normalizeApiError(error) || "Failed to contact career coach service.";
+
+      setErrorMessage(friendlyError);
+
       setMessages((prev) => [
         ...prev,
         {
@@ -80,38 +97,42 @@ export default function CareerCoachChatPage() {
           <span>CV-aware coaching</span>
         </div>
 
+        {errorMessage && (
+          <div
+            style={{
+              marginBottom: "12px",
+              padding: "10px 12px",
+              borderRadius: "10px",
+              background: "rgba(239, 68, 68, 0.12)",
+              color: "#fecaca",
+              fontSize: "14px",
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
         <div className="chat-messages">
           {messages.map((msg, index) => (
-            <div key={index} className={`chat-bubble ${msg.role}`}>
-              <div className="chat-role">
-                {msg.role === "user" ? "You" : "Coach"}
-              </div>
-              <div className="chat-content">{msg.content}</div>
-            </div>
+            <ChatMessage key={index} role={msg.role} content={msg.content} />
           ))}
 
           {loading && (
-            <div className="chat-bubble assistant">
-              <div className="chat-role">Coach</div>
-              <div className="chat-content">
-                Thinking about your profile and CV...
-              </div>
-            </div>
+            <ChatMessage
+              role="assistant"
+              content="Thinking about your profile and CV..."
+            />
           )}
+
           <div ref={bottomRef} />
         </div>
 
-        <div className="chat-input-row">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about CV improvements, jobs, interviews, skills, or roadmap..."
-            rows={3}
-          />
-          <button onClick={sendMessage} disabled={loading}>
-            Send
-          </button>
-        </div>
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSend={sendMessage}
+          loading={loading}
+        />
       </section>
     </div>
   );
