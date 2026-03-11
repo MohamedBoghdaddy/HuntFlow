@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
@@ -12,16 +12,26 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
 import MenuIcon from "@mui/icons-material/Menu";
-import { Link as RouterLink, NavLink, useNavigate } from "react-router-dom";
+import {
+  Link as RouterLink,
+  NavLink,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 function NavBar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleDrawerToggle = () => {
     setMobileOpen((prev) => !prev);
+  };
+
+  const closeDrawer = () => {
+    setMobileOpen(false);
   };
 
   const handleLogout = async () => {
@@ -33,41 +43,57 @@ function NavBar() {
     }
   };
 
-  const authLinks = [
-    { label: "Dashboard", to: "/dashboard" },
-    { label: "Discover Jobs", to: "/jobs" },
-    { label: "Career Coach", to: "/career-coach" },
-    { label: "Applications", to: "/applications" },
-    { label: "Profile", to: "/profile" },
-  ];
+  const authLinks = useMemo(
+    () => [
+      { label: "Dashboard", to: "/dashboard" },
+      { label: "Discover Jobs", to: "/jobs" },
+      { label: "Automation Loop", to: "/automation-loop" },
+      { label: "Career Coach", to: "/career-coach" },
+      { label: "Applications", to: "/applications" },
+      { label: "Profile", to: "/profile" },
+    ],
+    [],
+  );
 
-  const guestLinks = [
-    { label: "Login", to: "/login" },
-    { label: "Register", to: "/register" },
-  ];
+  const guestLinks = useMemo(
+    () => [
+      { label: "Login", to: "/login" },
+      { label: "Register", to: "/register" },
+    ],
+    [],
+  );
 
   const links = user ? authLinks : guestLinks;
+
+  const hideNavOnPublicAuthPages =
+    !user &&
+    (location.pathname === "/login" || location.pathname === "/register");
 
   const navButtonSx = {
     color: "inherit",
     borderRadius: 2,
     px: 1.5,
+    py: 0.75,
+    textTransform: "none",
+    fontWeight: 500,
     "&.active": {
       bgcolor: "rgba(255,255,255,0.16)",
     },
   };
 
   const drawerContent = (
-    <Box sx={{ width: 260 }} role="presentation" onClick={handleDrawerToggle}>
+    <Box sx={{ width: 280 }} role="presentation">
       <Box sx={{ px: 2, py: 2 }}>
         <Typography
           variant="h6"
           component={RouterLink}
           to="/"
+          onClick={closeDrawer}
           sx={{
             textDecoration: "none",
             color: "text.primary",
             fontWeight: 700,
+            letterSpacing: 0.3,
           }}
         >
           HuntFlow
@@ -78,15 +104,24 @@ function NavBar() {
 
       <List>
         {links.map((link) => (
-          <ListItemButton key={link.to} component={RouterLink} to={link.to}>
+          <ListItemButton
+            key={link.to}
+            component={RouterLink}
+            to={link.to}
+            onClick={closeDrawer}
+            selected={location.pathname === link.to}
+          >
             <ListItemText primary={link.label} />
           </ListItemButton>
         ))}
 
         {user && (
-          <ListItemButton onClick={handleLogout}>
-            <ListItemText primary="Logout" />
-          </ListItemButton>
+          <>
+            <Divider sx={{ my: 1 }} />
+            <ListItemButton onClick={handleLogout}>
+              <ListItemText primary="Logout" />
+            </ListItemButton>
+          </>
         )}
       </List>
     </Box>
@@ -111,53 +146,62 @@ function NavBar() {
             HuntFlow
           </Typography>
 
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ display: { xs: "none", md: "flex" }, alignItems: "center" }}
-          >
-            {links.map((link) => (
-              <Button
-                key={link.to}
-                component={NavLink}
-                to={link.to}
-                sx={navButtonSx}
-              >
-                {link.label}
-              </Button>
-            ))}
-
-            {user && (
-              <Button
-                color="inherit"
-                onClick={handleLogout}
+          {!hideNavOnPublicAuthPages && (
+            <>
+              <Stack
+                direction="row"
+                spacing={1}
                 sx={{
-                  borderRadius: 2,
-                  px: 1.5,
-                  ml: 1,
-                  border: "1px solid rgba(255,255,255,0.25)",
+                  display: { xs: "none", md: "flex" },
+                  alignItems: "center",
                 }}
               >
-                Logout
-              </Button>
-            )}
-          </Stack>
+                {links.map((link) => (
+                  <Button
+                    key={link.to}
+                    component={NavLink}
+                    to={link.to}
+                    sx={navButtonSx}
+                  >
+                    {link.label}
+                  </Button>
+                ))}
 
-          <IconButton
-            color="inherit"
-            edge="end"
-            onClick={handleDrawerToggle}
-            sx={{ display: { xs: "inline-flex", md: "none" } }}
-          >
-            <MenuIcon />
-          </IconButton>
+                {user && (
+                  <Button
+                    color="inherit"
+                    onClick={handleLogout}
+                    sx={{
+                      borderRadius: 2,
+                      px: 1.5,
+                      ml: 1,
+                      py: 0.75,
+                      textTransform: "none",
+                      border: "1px solid rgba(255,255,255,0.25)",
+                    }}
+                  >
+                    Logout
+                  </Button>
+                )}
+              </Stack>
+
+              <IconButton
+                color="inherit"
+                edge="end"
+                onClick={handleDrawerToggle}
+                sx={{ display: { xs: "inline-flex", md: "none" } }}
+              >
+                <MenuIcon />
+              </IconButton>
+            </>
+          )}
         </Toolbar>
       </AppBar>
 
       <Drawer
         anchor="right"
         open={mobileOpen}
-        onClose={handleDrawerToggle}
+        onClose={closeDrawer}
         sx={{ display: { xs: "block", md: "none" } }}
       >
         {drawerContent}
