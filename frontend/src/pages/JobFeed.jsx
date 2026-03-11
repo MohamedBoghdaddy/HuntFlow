@@ -29,7 +29,7 @@ function JobFeed() {
   const PAGE_SIZE = 12;
 
   const [jobs, setJobs] = useState([]);
-  const [total, setTotal] = useState(0); // total returned by backend (not global market size)
+  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -39,9 +39,9 @@ function JobFeed() {
   const [filters, setFilters] = useState({
     countries: ["eg", "ae", "sa", "eu"],
     remote_only: false,
-    sort_by: "relevance", // relevance | date
-    date_posted: "any", // any | 1 | 7 | 30
-    job_types: [], // full_time, part_time, contract, permanent, internship
+    sort_by: "relevance",
+    date_posted: "any",
+    job_types: [],
     where: "",
     salary_min: "",
     salary_max: "",
@@ -90,7 +90,6 @@ function JobFeed() {
         res?.count ??
         (Array.isArray(list) ? list.length : 0);
 
-      // We fetch up to "page" pages server-side, then show the current page slice
       const start = (page - 1) * PAGE_SIZE;
       const paged = Array.isArray(list)
         ? list.slice(start, start + PAGE_SIZE)
@@ -113,22 +112,46 @@ function JobFeed() {
     fetchJobs();
   };
 
-  const getJobId = (job) =>
-    job?.job_url || job?.apply_url || job?.url || job?.id;
+  const getJobId = (job) => job?._id || job?.id || null;
+
+  const getJobUrlKey = (job) =>
+    job?.job_url || job?.apply_url || job?.url || "";
 
   const openDetail = (job) => {
-    const jobId = getJobId(job);
-    if (!jobId) return;
-    sessionStorage.setItem(`hf_job_${jobId}`, JSON.stringify(job));
-    navigate(`/jobs/${encodeURIComponent(jobId)}`);
+    const routeKey = getJobId(job) || getJobUrlKey(job);
+    if (!routeKey) return;
+
+    sessionStorage.setItem(`hf_job_${routeKey}`, JSON.stringify(job));
+    navigate(`/jobs/${encodeURIComponent(routeKey)}`);
   };
+
+  const buildExternalJobPayload = (job) => ({
+    source: job?.source || "external",
+    country: job?.country || "",
+    title: job?.title || "",
+    company: job?.company || "",
+    location: job?.location || "",
+    description_snippet: job?.description_snippet || job?.description || "",
+    job_url: job?.job_url || job?.url || "",
+    apply_url: job?.apply_url || "",
+    posted_at: job?.posted_at || null,
+  });
 
   const handleSave = async (job) => {
     try {
-      const jobId = getJobId(job);
-      await api.node.applications.create({ jobId });
+      const internalId = getJobId(job);
+
+      if (internalId) {
+        await api.node.applications.create({ jobId: internalId });
+      } else {
+        await api.node.applications.create({
+          externalJob: buildExternalJobPayload(job),
+        });
+      }
+
       alert("Job saved to your pipeline");
     } catch (err) {
+      console.error("Failed to save application", err);
       alert(normalizeApiError(err));
     }
   };
@@ -255,11 +278,14 @@ function JobFeed() {
       ) : (
         <>
           <Grid container spacing={2}>
-            {jobs.map((job) => {
-              const jobId = getJobId(job);
+            {jobs.map((job, index) => {
+              const key =
+                getJobId(job) ||
+                getJobUrlKey(job) ||
+                `${job?.title || "job"}-${index}`;
 
               return (
-                <Grid item key={jobId} xs={12} sm={6} md={4}>
+                <Grid item key={key} xs={12} sm={6} md={4}>
                   <Paper
                     elevation={2}
                     sx={{
