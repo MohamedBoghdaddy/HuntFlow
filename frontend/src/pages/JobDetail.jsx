@@ -1,4 +1,3 @@
-// frontend/src/pages/JobDetail.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Container, Typography, Paper, Button, Stack } from "@mui/material";
@@ -9,10 +8,8 @@ function JobDetail() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const cacheKey = useMemo(
-    () => `hf_job_${decodeURIComponent(id || "")}`,
-    [id],
-  );
+  const decodedId = useMemo(() => decodeURIComponent(id || ""), [id]);
+  const cacheKey = useMemo(() => `hf_job_${decodedId}`, [decodedId]);
 
   useEffect(() => {
     let alive = true;
@@ -23,6 +20,7 @@ function JobDetail() {
           typeof window !== "undefined"
             ? sessionStorage.getItem(cacheKey)
             : null;
+
         if (raw) {
           const cached = JSON.parse(raw);
           if (alive) setJob(cached);
@@ -37,20 +35,41 @@ function JobDetail() {
     }
 
     load();
+
     return () => {
       alive = false;
     };
   }, [cacheKey]);
 
-  const getJobId = (j) =>
-    j?.job_url || j?.apply_url || j?.url || decodeURIComponent(id || "");
+  const getInternalJobId = (j) => j?._id || j?.id || null;
+
+  const buildExternalJobPayload = (j) => ({
+    source: j?.source || "external",
+    country: j?.country || "",
+    title: j?.title || "",
+    company: j?.company || "",
+    location: j?.location || "",
+    description_snippet: j?.description_snippet || j?.description || "",
+    job_url: j?.job_url || j?.url || "",
+    apply_url: j?.apply_url || "",
+    posted_at: j?.posted_at || null,
+  });
 
   const handleSave = async () => {
     try {
-      const jobId = getJobId(job);
-      await api.node.applications.create({ jobId });
+      const internalId = getInternalJobId(job);
+
+      if (internalId) {
+        await api.node.applications.create({ jobId: internalId });
+      } else {
+        await api.node.applications.create({
+          externalJob: buildExternalJobPayload(job),
+        });
+      }
+
       alert("Job saved to your pipeline");
     } catch (err) {
+      console.error("Failed to save application", err);
       alert(normalizeApiError(err));
     }
   };
