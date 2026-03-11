@@ -141,10 +141,12 @@ vite.config.ts.timestamp-*
 
 
 docs
-
+services/__pycache__/main.cpython-310.pyc
 pycache__/
 cpython-*/__pycache__/
 __pycache__/
 *.py[cod]
 *$py.class
 .pyc
+
+uploads
