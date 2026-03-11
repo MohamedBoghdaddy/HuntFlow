@@ -15,7 +15,7 @@ const PROD_NODE =
 
 const PROD_PY =
   import.meta?.env?.VITE_PROD_PY_API_URL ||
-  "https://huntflow-up9r.onrender.com";
+  "https://huntflow-bf7h.onrender.com";
 
 const isLocalhost =
   hostname === "localhost" || hostname === "127.0.0.1" || hostname === "";
