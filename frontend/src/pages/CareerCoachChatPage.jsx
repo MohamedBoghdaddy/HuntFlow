@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import api from "../services/api";
+import { nodeClient } from "../api/api";
 import "../styles/careerCoachChat.css";
 
 export default function CareerCoachChatPage() {
@@ -29,7 +29,7 @@ export default function CareerCoachChatPage() {
     setLoading(true);
 
     try {
-      const { data } = await api.post("/chat/send", {
+      const { data } = await nodeClient.post("/chat/send", {
         message: currentInput,
         sessionId,
       });
@@ -47,7 +47,8 @@ export default function CareerCoachChatPage() {
         ...prev,
         {
           role: "assistant",
-          content: "Something went wrong while contacting your career coach. Please try again.",
+          content:
+            "Something went wrong while contacting your career coach. Please try again.",
         },
       ]);
     } finally {
@@ -82,7 +83,9 @@ export default function CareerCoachChatPage() {
         <div className="chat-messages">
           {messages.map((msg, index) => (
             <div key={index} className={`chat-bubble ${msg.role}`}>
-              <div className="chat-role">{msg.role === "user" ? "You" : "Coach"}</div>
+              <div className="chat-role">
+                {msg.role === "user" ? "You" : "Coach"}
+              </div>
               <div className="chat-content">{msg.content}</div>
             </div>
           ))}
@@ -90,7 +93,9 @@ export default function CareerCoachChatPage() {
           {loading && (
             <div className="chat-bubble assistant">
               <div className="chat-role">Coach</div>
-              <div className="chat-content">Thinking about your profile and CV...</div>
+              <div className="chat-content">
+                Thinking about your profile and CV...
+              </div>
             </div>
           )}
           <div ref={bottomRef} />
