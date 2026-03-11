@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+router.get("/", requireAuth, getMyProfile);
 router.get("/me", requireAuth, getMyProfile);
 router.post("/", requireAuth, createOrUpdateProfile);
 router.put("/", requireAuth, createOrUpdateProfile);
