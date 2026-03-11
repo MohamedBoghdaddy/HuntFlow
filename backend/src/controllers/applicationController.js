@@ -65,18 +65,88 @@ const updateApplicationStatus = async (req, res) => {
   }
 };
 
-/*
- * The following functions were previously used to integrate with external
- * applicant tracking systems (Greenhouse/Lever), send emails to recruiters,
- * and request AI-generated interview preparation. These features have
- * been removed from the CRUD-only backend. If you need to support
- * automated applications, contact emails or interview prep again, add
- * corresponding services and controllers.
- */
+const createApplication = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.user?.id;
+    const { jobId, jobData } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    let job = null;
+
+    if (jobId) {
+      job = await Job.findById(jobId);
+    }
+
+    if (!job && jobData) {
+      const normalizedUrl = jobData.apply_url || jobData.url;
+
+      job = await Job.findOne({
+        $or: [
+          ...(normalizedUrl ? [{ url: normalizedUrl }] : []),
+          {
+            title: jobData.title,
+            company: jobData.company,
+            location: jobData.location || "",
+          },
+        ],
+      });
+
+      if (!job) {
+        job = await Job.create({
+          title: jobData.title || "",
+          company: jobData.company || "",
+          location: jobData.location || "",
+          description: jobData.description || jobData.description_snippet || "",
+          url: normalizedUrl || "",
+          source: jobData.source || "unknown",
+          country: jobData.country || "",
+        });
+      }
+    }
+
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    const existingApplication = await Application.findOne({
+      userId,
+      jobId: job._id,
+    });
+
+    if (existingApplication) {
+      return res.status(409).json({
+        error: "You already saved this job",
+        application: existingApplication,
+      });
+    }
+
+    const application = await Application.create({
+      userId,
+      jobId: job._id,
+      status: "saved",
+      appliedAt: null,
+    });
+
+    return res.status(201).json({
+      message: "Application created successfully",
+      application,
+      job,
+    });
+  } catch (error) {
+    console.error("createApplication error:", error);
+    return res.status(500).json({
+      error: "Failed to save application",
+      details: error.message,
+    });
+  }
+};
 
 export default {
   saveApplication,
   getApplications,
   updateApplicationStatus,
-  // AI-related actions have been removed. Only CRUD functions remain.
+  createApplication,
 };
