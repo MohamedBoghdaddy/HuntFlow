@@ -1,143 +1,177 @@
-// frontend/src/api/api.js
-import axios from "axios";
+import React, { useEffect, useRef, useState } from "react";
+import { api, nodeClient, normalizeApiError } from "../api/api";
 
-const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+export default function JobSearch() {
+  const [jobs, setJobs] = useState([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [message, setMessage] = useState("");
 
-// Local defaults
-const LOCAL_NODE = "http://localhost:4000";
-const LOCAL_PY = "http://127.0.0.1:8000";
+  const jobsCacheRef = useRef({});
 
-// Optional env overrides (Vite)
-// VITE_NODE_API_URL=http://localhost:4000
-// VITE_PY_API_URL=http://127.0.0.1:8000
-const ENV_NODE = import.meta?.env?.VITE_NODE_API_URL;
-const ENV_PY = import.meta?.env?.VITE_PY_API_URL;
+  const loadCache = () => {
+    if (Object.keys(jobsCacheRef.current).length > 0) return;
 
-// Production origin (Render)
-const PROD_ORIGIN = "https://huntflow-up9r.onrender.com";
+    const raw = sessionStorage.getItem("jobsCache");
+    if (!raw) return;
 
-// Pick origins
-export const NODE_ORIGIN =
-  hostname === "localhost" ? ENV_NODE || LOCAL_NODE : PROD_ORIGIN;
-
-export const PY_ORIGIN =
-  hostname === "localhost" ? ENV_PY || LOCAL_PY : PROD_ORIGIN;
-
-// Node routes mounted under /api, FastAPI routes are direct (/jobs, /cv, /health)
-export const NODE_BASE_URL = `${NODE_ORIGIN}/api`;
-export const PY_BASE_URL = PY_ORIGIN;
-
-// Token helpers
-const getToken = () => {
-  if (typeof window === "undefined") return null;
-
-  const direct =
-    localStorage.getItem("token") || sessionStorage.getItem("token");
-  if (direct) return direct;
-
-  const rawUser =
-    localStorage.getItem("user") || sessionStorage.getItem("user");
-  if (rawUser) {
     try {
-      const u = JSON.parse(rawUser);
-      return u?.token || u?.accessToken || u?.jwt || null;
+      jobsCacheRef.current = JSON.parse(raw);
     } catch {
-      // ignore
+      sessionStorage.removeItem("jobsCache");
+      jobsCacheRef.current = {};
     }
-  }
+  };
 
-  return null;
-};
+  const saveCache = () => {
+    sessionStorage.setItem("jobsCache", JSON.stringify(jobsCacheRef.current));
+  };
 
-const clearToken = () => {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem("token");
-  sessionStorage.removeItem("token");
-  localStorage.removeItem("user");
-  sessionStorage.removeItem("user");
-};
+  const clearCache = () => {
+    jobsCacheRef.current = {};
+    sessionStorage.removeItem("jobsCache");
+  };
 
-function attachInterceptors(client) {
-  client.interceptors.request.use(
-    (config) => {
-      const token = getToken();
-      if (token) config.headers.Authorization = `Bearer ${token}`;
-      return config;
-    },
-    (error) => Promise.reject(error),
-  );
+  const fetchJobs = async (forcedSearch = search) => {
+    setLoading(true);
+    setMessage("");
 
-  client.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (error?.response?.status === 401 && getToken()) {
-        clearToken();
+    try {
+      loadCache();
+
+      const cacheKey = (forcedSearch || "").trim().toLowerCase();
+
+      if (jobsCacheRef.current[cacheKey]) {
+        setJobs(jobsCacheRef.current[cacheKey]);
+        return;
       }
-      return Promise.reject(error);
-    },
-  );
 
-  return client;
-}
+      const payload = {
+        query: forcedSearch?.trim() || "software engineer",
+        limit: 20,
+      };
 
-// Node client (auth, applications)
-export const nodeClient = attachInterceptors(
-  axios.create({
-    baseURL: NODE_BASE_URL,
-    withCredentials: true,
-    timeout: 20000,
-  }),
-);
+      const response = await api.py.jobs.search(payload);
 
-// Python client (jobs, cv)
-export const pyClient = attachInterceptors(
-  axios.create({
-    baseURL: PY_BASE_URL,
-    withCredentials: true,
-    timeout: 20000,
-  }),
-);
+      const result =
+        response?.data?.jobs || response?.data?.results || response?.data || [];
 
-export function normalizeApiError(err) {
+      const normalizedJobs = Array.isArray(result) ? result : [];
+
+      setJobs(normalizedJobs);
+      jobsCacheRef.current[cacheKey] = normalizedJobs;
+      saveCache();
+    } catch (err) {
+      console.error("Failed to fetch jobs", err);
+      setJobs([]);
+      setMessage(normalizeApiError(err) || "Error fetching jobs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncJobs = async () => {
+    setSyncing(true);
+    setMessage("Syncing jobs...");
+
+    try {
+      const response = await nodeClient.post("/jobs/sync");
+      const created = response?.data?.created || 0;
+
+      setMessage(`Imported ${created} new jobs`);
+      clearCache();
+      await fetchJobs(search);
+    } catch (err) {
+      console.error("Failed to sync jobs", err);
+      setMessage(normalizeApiError(err) || "Error syncing jobs");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const saveJob = async (jobId) => {
+    try {
+      const response = await nodeClient.post("/applications", { jobId });
+
+      if (response?.status >= 200 && response?.status < 300) {
+        setMessage("Job saved to your applications");
+      } else {
+        setMessage("Error saving job");
+      }
+    } catch (err) {
+      console.error("Failed to save job", err);
+      setMessage(normalizeApiError(err) || "Error saving job");
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs("");
+  }, []);
+
   return (
-    err?.response?.data?.detail ||
-    err?.response?.data?.message ||
-    err?.response?.data?.error ||
-    err?.message ||
-    "Request failed"
+    <div>
+      <h2>Job Search</h2>
+
+      <div
+        style={{
+          marginBottom: "1rem",
+          display: "flex",
+          gap: "0.5rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search jobs"
+        />
+
+        <button onClick={() => fetchJobs(search)} disabled={loading}>
+          {loading ? "Searching..." : "Search"}
+        </button>
+
+        <button onClick={syncJobs} disabled={syncing}>
+          {syncing ? "Syncing..." : "Sync External Jobs"}
+        </button>
+      </div>
+
+      {message && <p>{message}</p>}
+
+      {loading ? (
+        <p>Loading jobs...</p>
+      ) : jobs.length === 0 ? (
+        <p>No jobs found.</p>
+      ) : (
+        <table width="100%" border="1" cellPadding="4" cellSpacing="0">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Company</th>
+              <th>Location</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.map((job, index) => (
+              <tr key={job._id || job.id || `${job.title}-${index}`}>
+                <td>{job.title || "-"}</td>
+                <td>{job.company || "-"}</td>
+                <td>{job.location || "-"}</td>
+                <td>
+                  <button
+                    onClick={() => saveJob(job._id || job.id)}
+                    disabled={!job._id && !job.id}
+                  >
+                    Save
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
-
-// Convenience wrappers
-export const api = {
-  node: {
-    auth: {
-      login: (payload) => nodeClient.post("/auth/login", payload),
-      register: (payload) => nodeClient.post("/auth/register", payload),
-      me: () => nodeClient.get("/auth/me"),
-      logout: () => nodeClient.post("/auth/logout"),
-    },
-    applications: {
-      list: () => nodeClient.get("/applications"),
-      create: (payload) => nodeClient.post("/applications", payload),
-      update: (id, payload) => nodeClient.put(`/applications/${id}`, payload),
-    },
-  },
-
-  py: {
-    health: () => pyClient.get("/health"),
-    jobs: {
-      search: (payload) => pyClient.post("/jobs/search", payload),
-      extract: (payload) => pyClient.post("/jobs/extract", payload),
-    },
-    cv: {
-      atsScore: (payload) => pyClient.post("/cv/ats-score", payload),
-      enhance: (payload) => pyClient.post("/cv/enhance", payload),
-      resume: (payload) => pyClient.post("/cv/resume", payload),
-      coach: (payload) => pyClient.post("/cv/coach", payload),
-    },
-  },
-};
-
-// Keep default export as the Node client for existing imports
-export default nodeClient;
