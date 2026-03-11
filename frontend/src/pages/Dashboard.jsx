@@ -3,12 +3,6 @@ import { Link as RouterLink } from "react-router-dom";
 import { Container, Grid, Paper, Typography, Button } from "@mui/material";
 import apiClient, { normalizeApiError, api as hfApi } from "../api/api";
 
-/**
- * Dashboard shows quick stats.
- * Updated to work with your new api.js and FastAPI routes:
- * - Jobs count comes from POST /jobs/search (FastAPI)
- * - Applications count still comes from GET /applications (Node or your existing route)
- */
 function Dashboard() {
   const [jobCount, setJobCount] = useState(0);
   const [applicationCount, setApplicationCount] = useState(0);
@@ -19,11 +13,8 @@ function Dashboard() {
 
     async function fetchData() {
       try {
-        // 1) Jobs count from FastAPI: POST /jobs/search
-        // We only need a count, so keep pages/results_per_page small
-        // If your backend is still Node-proxying, hfApi.jobs.search will still work as long as routing matches.
-        const jobsRes = await hfApi.jobs.search({
-          query: "software", // default query for "market size" style count
+        const jobsRes = await hfApi.py.jobs.search({
+          query: "software",
           countries: ["eg", "ae", "sa", "eu"],
           pages: 1,
           results_per_page: 5,
@@ -37,12 +28,13 @@ function Dashboard() {
           jobsRes?.jobs?.length ??
           0;
 
-        // 2) Applications count from your existing route: GET /applications
         const appsRes = await apiClient.get("/applications");
+
         const apps =
           appsRes?.data?.applications ||
           appsRes?.data?.items ||
           appsRes?.data?.data?.applications ||
+          appsRes?.data ||
           [];
 
         if (!alive) return;
@@ -51,13 +43,16 @@ function Dashboard() {
         setApplicationCount(Array.isArray(apps) ? apps.length : 0);
       } catch (err) {
         console.error("Failed to load dashboard stats:", err);
-        if (alive) alert(normalizeApiError(err));
+        if (alive) {
+          alert(normalizeApiError(err));
+        }
       } finally {
         if (alive) setLoading(false);
       }
     }
 
     fetchData();
+
     return () => {
       alive = false;
     };
