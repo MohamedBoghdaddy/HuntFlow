@@ -1,5 +1,50 @@
 import Profile from "../models/Profile.js";
 
+const normalizeStringArray = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const normalizeBoolean = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.toLowerCase() === "true";
+  return false;
+};
+
+const emptyProfileShape = {
+  title: "",
+  seniority: "",
+  locations: [],
+  links: {
+    portfolio: "",
+    github: "",
+    linkedin: "",
+  },
+  authorization: "",
+  salaryExpectation: {
+    amount: "",
+    currency: "",
+  },
+  preferences: {
+    roles: [],
+    industries: [],
+    companies: [],
+    salary: "",
+    remoteOnly: false,
+    cities: [],
+  },
+};
+
 export const getMyProfile = async (req, res) => {
   try {
     const userId = req.user?._id || req.user?.id;
@@ -13,12 +58,14 @@ export const getMyProfile = async (req, res) => {
     const profile = await Profile.findOne({ userId });
 
     if (!profile) {
-      return res.status(404).json({
-        message: "Profile not found",
+      return res.status(200).json({
+        profile: emptyProfileShape,
       });
     }
 
-    return res.status(200).json(profile);
+    return res.status(200).json({
+      profile,
+    });
   } catch (error) {
     console.error("getMyProfile error:", error);
     return res.status(500).json({
@@ -39,39 +86,51 @@ export const createOrUpdateProfile = async (req, res) => {
     }
 
     const {
-      fullName,
-      email,
-      phone,
-      location,
-      targetRole,
-      yearsOfExperience,
-      skills,
-      education,
-      certifications,
-      summary,
+      title,
+      seniority,
+      locations,
+      links,
+      authorization,
+      salaryExpectation,
+      preferences,
     } = req.body;
 
     const profileData = {
       userId,
-      fullName: fullName?.trim?.() || "",
-      email: email?.trim?.().toLowerCase?.() || "",
-      phone: phone?.trim?.() || "",
-      location: location?.trim?.() || "",
-      targetRole: targetRole?.trim?.() || "",
-      yearsOfExperience:
-        yearsOfExperience !== undefined && yearsOfExperience !== null
-          ? Number(yearsOfExperience)
-          : 0,
-      skills: Array.isArray(skills)
-        ? skills.map((item) => String(item).trim()).filter(Boolean)
-        : [],
-      education: Array.isArray(education)
-        ? education.map((item) => String(item).trim()).filter(Boolean)
-        : [],
-      certifications: Array.isArray(certifications)
-        ? certifications.map((item) => String(item).trim()).filter(Boolean)
-        : [],
-      summary: summary?.trim?.() || "",
+      title: typeof title === "string" ? title.trim() : "",
+      seniority: typeof seniority === "string" ? seniority.trim() : "",
+      locations: normalizeStringArray(locations),
+      links: {
+        portfolio:
+          typeof links?.portfolio === "string" ? links.portfolio.trim() : "",
+        github: typeof links?.github === "string" ? links.github.trim() : "",
+        linkedin:
+          typeof links?.linkedin === "string" ? links.linkedin.trim() : "",
+      },
+      authorization:
+        typeof authorization === "string" ? authorization.trim() : "",
+      salaryExpectation: {
+        amount:
+          salaryExpectation?.amount !== undefined &&
+          salaryExpectation?.amount !== null
+            ? String(salaryExpectation.amount).trim()
+            : "",
+        currency:
+          typeof salaryExpectation?.currency === "string"
+            ? salaryExpectation.currency.trim()
+            : "",
+      },
+      preferences: {
+        roles: normalizeStringArray(preferences?.roles),
+        industries: normalizeStringArray(preferences?.industries),
+        companies: normalizeStringArray(preferences?.companies),
+        salary:
+          preferences?.salary !== undefined && preferences?.salary !== null
+            ? String(preferences.salary).trim()
+            : "",
+        remoteOnly: normalizeBoolean(preferences?.remoteOnly),
+        cities: normalizeStringArray(preferences?.cities),
+      },
     };
 
     const profile = await Profile.findOneAndUpdate({ userId }, profileData, {
