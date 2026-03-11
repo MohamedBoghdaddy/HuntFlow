@@ -1,4 +1,3 @@
-# services/main.py
 import logging
 
 from fastapi import FastAPI, BackgroundTasks
@@ -9,6 +8,7 @@ from services.routes.cv import router as cv_router
 from services.huntflow_job_runner import run_automation_pipeline
 from services.ai_service.main import app as ai_service_app
 from services.routes.career_coach import router as career_coach_router
+from services.routes.apply_routes import router as apply_router
 
 try:
     from services.routes.applications import router as applications_router
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(jobs_router)
 app.include_router(cv_router)
 app.include_router(career_coach_router)
+app.include_router(apply_router)
 
 if applications_router:
     app.include_router(applications_router)
