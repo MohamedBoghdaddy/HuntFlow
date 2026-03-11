@@ -2,7 +2,7 @@
 # Full MVP: merged + enhanced /jobs endpoints
 # - Unified router
 # - Supports both:
-#   1) Multi-provider search via JobSearchEngine (aggregator)
+#   1) Multi-provider search via JobSearchEngine
 #   2) Adzuna-only search with country expansion + paging
 # - Robust validation, dedupe, caps, timeouts
 # - Extract apply links from URLs with safe fallbacks
@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -41,6 +41,7 @@ class JobItem(BaseModel):
         url = (self.apply_url or self.job_url or "").strip().lower()
         if url:
             return url
+
         return f"{self.title}|{self.company}|{self.location}".strip().lower()
 
 
@@ -61,10 +62,12 @@ class JobSearchRequest(BaseModel):
     @classmethod
     def normalize_countries(cls, value: List[str]) -> List[str]:
         out: List[str] = []
+
         for country in value or []:
             cc = str(country).strip().lower()
             if cc:
                 out.append(cc)
+
         return out or ["eg"]
 
     @model_validator(mode="after")
@@ -99,12 +102,15 @@ class JobExtractRequest(BaseModel):
     @classmethod
     def normalize_urls(cls, value: List[str]) -> List[str]:
         out: List[str] = []
+
         for url in value or []:
             s = str(url).strip()
             if s:
                 out.append(s)
+
         if not out:
             raise ValueError("urls cannot be empty")
+
         return out
 
 
@@ -150,6 +156,7 @@ def dedupe_jobs(jobs: List[JobItem], cap: Optional[int] = None) -> List[JobItem]
         key = job.stable_key
         if key in seen:
             continue
+
         seen.add(key)
         out.append(job)
 
@@ -170,6 +177,39 @@ def safe_job_fallback(url: str) -> JobItem:
         job_url=url,
         apply_url="",
         posted_at=None,
+    )
+
+
+def normalize_job_item(item: Any) -> JobItem:
+    if isinstance(item, JobItem):
+        return item
+
+    if item is None:
+        return JobItem()
+
+    if hasattr(item, "model_dump"):
+        data = item.model_dump()
+        if isinstance(data, dict):
+            return JobItem(**data)
+
+    if isinstance(item, dict):
+        return JobItem(**item)
+
+    if hasattr(item, "dict"):
+        data = item.dict()
+        if isinstance(data, dict):
+            return JobItem(**data)
+
+    return JobItem(
+        source=str(getattr(item, "source", "unknown") or "unknown"),
+        country=str(getattr(item, "country", "") or ""),
+        title=str(getattr(item, "title", "") or ""),
+        company=str(getattr(item, "company", "") or ""),
+        location=str(getattr(item, "location", "") or ""),
+        description_snippet=str(getattr(item, "description_snippet", "") or ""),
+        job_url=str(getattr(item, "job_url", getattr(item, "url", "")) or ""),
+        apply_url=str(getattr(item, "apply_url", "") or ""),
+        posted_at=getattr(item, "posted_at", None),
     )
 
 
@@ -209,7 +249,10 @@ async def search_jobs(payload: JobSearchRequest) -> JobSearchResponse:
                 continue
 
             for item in chunk or []:
-                country_jobs.append(item if isinstance(item, JobItem) else JobItem(**item))
+                try:
+                    country_jobs.append(normalize_job_item(item))
+                except Exception:
+                    continue
 
             if len(country_jobs) >= per_country_limit:
                 break
@@ -229,7 +272,7 @@ async def search_jobs(payload: JobSearchRequest) -> JobSearchResponse:
 @router.post("/multi-search")
 async def multi_source_search(payload: MultiSourceSearchRequest):
     try:
-        return await engine.search(
+        result = await engine.search(
             query=payload.query,
             where=payload.where,
             limit=payload.limit,
@@ -238,8 +281,12 @@ async def multi_source_search(payload: MultiSourceSearchRequest):
             batch_size=payload.batch_size,
             per_provider_limit=payload.per_provider_limit,
         )
+        return result
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Multi-source search failed: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Multi-source search failed: {exc}",
+        ) from exc
 
 
 @router.post("/extract", response_model=JobExtractedResponse)
@@ -249,7 +296,7 @@ async def extract_apply_links(payload: JobExtractRequest) -> JobExtractedRespons
     for url in payload.urls:
         try:
             item = await extract_job(url)
-            out.append(item if isinstance(item, JobItem) else JobItem(**item))
+            out.append(normalize_job_item(item))
         except Exception:
             out.append(safe_job_fallback(url))
 
