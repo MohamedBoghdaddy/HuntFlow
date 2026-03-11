@@ -1,56 +1,54 @@
-import ChatSession from "../models/ChatSession.js";
-import Profile from "../models/Profile.js";
-import CV from "../models/Cv.js";
-import { chatWithPython } from "../services/pythonAiService.js";
+import axios from "axios";
 
 export const sendCareerCoachMessage = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { message, sessionId } = req.body;
-
-    const profile = await Profile.findOne({ userId });
-    const cv = await CV.findOne({ userId }).sort({ createdAt: -1 });
-
-    if (!profile) {
-      return res.status(404).json({ message: "Profile not found" });
-    }
-
-    let chatSession;
-
-    if (sessionId) {
-      chatSession = await ChatSession.findOne({ _id: sessionId, userId });
-    }
-
-    if (!chatSession) {
-      chatSession = await ChatSession.create({
-        userId,
-        messages: [],
-      });
-    }
-
-    const history = chatSession.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    const aiResult = await chatWithPython({
-      profile,
-      cvAnalysis: cv?.analysis || null,
-      history,
+    const {
       message,
-    });
+      profile_summary,
+      resume_text,
+      target_role,
+      target_industry,
+      target_location,
+      job_description,
+      conversation_history = [],
+    } = req.body;
 
-    chatSession.messages.push({ role: "user", content: message });
-    chatSession.messages.push({ role: "assistant", content: aiResult.reply });
-    await chatSession.save();
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "message is required" });
+    }
 
-    res.json({
-      sessionId: chatSession._id,
-      reply: aiResult.reply,
-      suggestions: aiResult.suggestions || [],
-    });
+    const pythonBaseUrl = process.env.PYTHON_API_URL || "http://127.0.0.1:8000";
+
+    const response = await axios.post(
+      `${pythonBaseUrl}/career-coach/chat`,
+      {
+        message,
+        profile_summary,
+        resume_text,
+        target_role,
+        target_industry,
+        target_location,
+        job_description,
+        conversation_history,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: 30000,
+      },
+    );
+
+    return res.status(200).json(response.data);
   } catch (error) {
-    console.error("sendCareerCoachMessage error:", error.message);
-    res.status(500).json({ message: "Failed to send message" });
+    console.error(
+      "sendCareerCoachMessage error:",
+      error.response?.data || error.message,
+    );
+
+    return res.status(error.response?.status || 500).json({
+      error: "Career coach request failed",
+      details: error.response?.data || error.message,
+    });
   }
 };
