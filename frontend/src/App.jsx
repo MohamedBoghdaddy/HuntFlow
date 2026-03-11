@@ -12,6 +12,7 @@ import ApplicationTracker from "./pages/ApplicationTracker";
 import Profile from "./pages/Profile";
 import JobSearch from "./pages/JobSearch";
 import CareerCoachChatPage from "./pages/CareerCoachChatPage";
+import AutomationLoopPage from "./pages/AutomationLoopPage";
 
 import { useAuth } from "./contexts/AuthContext";
 
@@ -94,6 +95,15 @@ export default function App() {
           element={
             <PrivateRoute>
               <CareerCoachChatPage />
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/automation-loop"
+          element={
+            <PrivateRoute>
+              <AutomationLoopPage />
             </PrivateRoute>
           }
         />
