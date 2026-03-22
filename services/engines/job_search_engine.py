@@ -1,18 +1,19 @@
 """
 engines/job_search_engine.py
 
-Improvements:
-  1. ROI-ranked provider order
-  2. Per-provider rate-limit tiers via updated RateLimiter
-  3. 1-hour disk cache – same query skips network calls for 60 min
-  4. Tier-1 providers can run in larger concurrent batches
+Fix:
+- Run providers tier-by-tier (sequential tiers)
+- Provider plan adapts to search parameters (query, where)
+- Tier-specific batch size and per-provider limits (Tier 1 can be larger)
+- Keep cache, retries, dedupe, rate limiter
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional, List
+import re
+from typing import Optional, List, Dict, Tuple
 
 from services.responses.jobs import JobItem
 from services.services.providers.base import dedupe_jobs, ProviderResult
@@ -30,23 +31,7 @@ from services.utils.job_cache import get_default_cache
 
 log = logging.getLogger(__name__)
 
-# ── ROI-ranked provider order ────────────────────────────────────────────────
-#
-# Tier 1 – Official APIs, query-aware, high yield, fast:
-#   adzuna    → structured API, best data, direct apply URLs
-#   remotive  → direct search param, good yield for remote tech
-#   himalayas → remote-focused, clean API with query param
-#   jobicy    → query param supported, consistent JSON
-#
-# Tier 2 – Good coverage but may need client-side filtering or extra hops:
-#   arbeitnow → EU-heavy, client-side title filter
-#   jobspy    → broad reach but slower / optional dependency
-#
-# Tier 3 – Niche / noisy / lower hit rate for most queries:
-#   remoteok  → bulk fetch then local filter
-#   muse      → client-side filter only
-#   usajobs   → narrow niche
-#
+# ── ROI-ranked provider order (base) ─────────────────────────────────────────
 DEFAULT_PROVIDER_ORDER = [
     # Tier 1
     "adzuna",
@@ -64,6 +49,7 @@ DEFAULT_PROVIDER_ORDER = [
 
 TIER1_PROVIDERS = {"adzuna", "remotive", "himalayas", "jobicy"}
 TIER2_PROVIDERS = {"arbeitnow", "jobspy"}
+TIER3_PROVIDERS = {"remoteok", "muse", "usajobs"}
 
 PROVIDER_MAP = {
     "jobspy": JobSpyProvider,
@@ -86,6 +72,98 @@ def _get_provider(name: str):
     if cls is None:
         raise KeyError(f"Unknown provider: {name}")
     return cls()
+
+
+def _normalize_text(s: Optional[str]) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+
+def _looks_remote(text: str) -> bool:
+    if not text:
+        return False
+    return any(k in text for k in ["remote", "work from home", "wfh", "distributed"])
+
+
+def _looks_eu(text: str) -> bool:
+    if not text:
+        return False
+    # lightweight signals only
+    return any(k in text for k in ["europe", "eu", "germany", "france", "netherlands", "spain", "italy"])
+
+
+def _looks_us(text: str) -> bool:
+    if not text:
+        return False
+    return any(k in text for k in ["united states", "usa", "us ", " u.s", "washington", "california", "new york"])
+
+
+def _tier_of(p: str) -> int:
+    if p in TIER1_PROVIDERS:
+        return 1
+    if p in TIER2_PROVIDERS:
+        return 2
+    return 3
+
+
+def _build_provider_plan(
+    base_order: List[str],
+    query: str,
+    where: Optional[str],
+    providers_override: Optional[List[str]],
+) -> List[List[str]]:
+    """
+    Returns providers grouped into tiers, ordered sequentially.
+    The tier order is adapted based on the search parameters.
+    """
+    q = _normalize_text(query)
+    w = _normalize_text(where)
+    combined = f"{q} {w}".strip()
+
+    # Start with override or default, keep only known providers
+    order = providers_override or base_order
+    order = [p for p in order if p in PROVIDER_MAP]
+
+    # Make sure adzuna is always present (it is your highest-yield structured source)
+    if "adzuna" not in order:
+        order = ["adzuna", *order]
+
+    # Base grouping
+    tier1 = [p for p in order if p in TIER1_PROVIDERS]
+    tier2 = [p for p in order if p in TIER2_PROVIDERS]
+    tier3 = [p for p in order if p in TIER3_PROVIDERS]
+
+    # Adapt tier ordering based on intent
+    remote_intent = _looks_remote(combined)
+    eu_intent = _looks_eu(combined)
+    us_intent = _looks_us(combined)
+
+    # Heuristics:
+    # - Remote intent: remote-focused Tier 1 first, then RemoteOK earlier inside Tier 3
+    # - EU intent: Arbeitnow earlier inside Tier 2
+    # - US intent: USAJobs earlier inside Tier 3
+    if remote_intent:
+        # reorder tier1 to bias remote providers after adzuna
+        if "adzuna" in tier1:
+            tier1 = ["adzuna"] + [p for p in tier1 if p != "adzuna"]
+        # bring remoteok forward inside tier3
+        tier3 = (["remoteok"] if "remoteok" in tier3 else []) + [p for p in tier3 if p != "remoteok"]
+
+    if eu_intent:
+        tier2 = (["arbeitnow"] if "arbeitnow" in tier2 else []) + [p for p in tier2 if p != "arbeitnow"]
+
+    if us_intent:
+        tier3 = (["usajobs"] if "usajobs" in tier3 else []) + [p for p in tier3 if p != "usajobs"]
+
+    # Final sequential tiers
+    tiers: List[List[str]] = []
+    if tier1:
+        tiers.append(tier1)
+    if tier2:
+        tiers.append(tier2)
+    if tier3:
+        tiers.append(tier3)
+
+    return tiers
 
 
 class JobSearchEngine:
@@ -111,19 +189,27 @@ class JobSearchEngine:
         per_provider_limit: int = 40,
     ) -> dict:
         """
-        ROI-first provider search with caching.
+        Tier-sequential provider search with caching.
 
         Behavior:
-        - checks cache first
-        - searches providers in ranked order
-        - runs providers in small concurrent batches
-        - stops when min_results is reached or providers are exhausted
-        - caps final jobs to `limit`
+        - cache first
+        - build a tier plan based on query/where
+        - run Tier 1, then Tier 2, then Tier 3 (sequential tiers)
+        - within each tier, run providers in batches (tier-aware concurrency)
+        - stop when min_results reached or providers exhausted
+        - cap final jobs to `limit`
         """
-        order = providers or self.provider_order
-        order = [p for p in order if p in PROVIDER_MAP]
 
-        cached = self._cache.get(query=query, where=where, providers=order)
+        tiers = _build_provider_plan(
+            base_order=self.provider_order,
+            query=query,
+            where=where,
+            providers_override=providers,
+        )
+
+        flat_order = [p for tier in tiers for p in tier]
+
+        cached = self._cache.get(query=query, where=where, providers=flat_order)
         if cached is not None:
             log.info("job_cache: returning cached result for query=%r where=%r", query, where)
             return cached
@@ -131,55 +217,73 @@ class JobSearchEngine:
         all_jobs: List[JobItem] = []
         results: List[ProviderResult] = []
 
-        idx = 0
-        while idx < len(order) and len(all_jobs) < min_results:
-            batch = order[idx: idx + batch_size]
-            idx += batch_size
+        async def search_provider(p_name: str) -> ProviderResult:
+            await self.limiter.wait(key=f"provider:{p_name}")
+            provider = _get_provider(p_name)
+            return await with_retries(
+                lambda: provider.search(
+                    query=query,
+                    where=where,
+                    limit=per_provider_limit,
+                ),
+                tries=3,
+                base_delay_s=2,
+                max_delay_s=20,
+            )
 
-            async def search_provider(p_name: str) -> ProviderResult:
-                await self.limiter.wait(key=f"provider:{p_name}")
-                provider = _get_provider(p_name)
-                return await with_retries(
-                    lambda: provider.search(
-                        query=query,
-                        where=where,
-                        limit=per_provider_limit,
-                    ),
-                    tries=3,
-                    base_delay_s=2,
-                    max_delay_s=20,
+        # Tier-by-tier execution
+        for tier in tiers:
+            if len(all_jobs) >= min_results:
+                break
+
+            # Tier-aware concurrency
+            tier_num = _tier_of(tier[0]) if tier else 3
+            tier_batch_size = batch_size
+
+            # Tier 1 can run larger concurrent batches
+            if tier_num == 1:
+                tier_batch_size = max(batch_size, 4)
+            elif tier_num == 2:
+                tier_batch_size = max(2, min(batch_size, 3))
+            else:
+                tier_batch_size = 1  # Tier 3 tends to be noisier, keep it sequential
+
+            idx = 0
+            while idx < len(tier) and len(all_jobs) < min_results:
+                batch = tier[idx: idx + tier_batch_size]
+                idx += tier_batch_size
+
+                batch_results = await asyncio.gather(
+                    *[search_provider(p) for p in batch],
+                    return_exceptions=True,
                 )
 
-            tasks = [search_provider(p) for p in batch]
-            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+                for p_name, result in zip(batch, batch_results):
+                    if isinstance(result, Exception):
+                        log.warning("provider %s failed: %s", p_name, result)
+                        results.append(ProviderResult(provider=p_name, jobs=[], error=str(result)))
+                        continue
 
-            for p_name, result in zip(batch, batch_results):
-                if isinstance(result, Exception):
-                    log.warning("provider %s failed: %s", p_name, result)
-                    results.append(
-                        ProviderResult(provider=p_name, jobs=[], error=str(result))
-                    )
-                    continue
+                    results.append(result)
+                    all_jobs.extend(result.jobs)
 
-                results.append(result)
-                all_jobs.extend(result.jobs)
+                all_jobs = dedupe_jobs(all_jobs)
 
-            all_jobs = dedupe_jobs(all_jobs)
-
-            if len(all_jobs) >= limit:
-                all_jobs = all_jobs[:limit]
-                break
+                if len(all_jobs) >= limit:
+                    all_jobs = all_jobs[:limit]
+                    break
 
         payload = {
             "query": query,
             "where": where,
+            "providers_plan": tiers,
             "providers_used": [r.provider for r in results if r.jobs],
             "provider_errors": {r.provider: r.error for r in results if r.error},
             "count": len(all_jobs),
             "jobs": all_jobs,
         }
 
-        self._cache.set(query=query, where=where, providers=order, data=payload)
+        self._cache.set(query=query, where=where, providers=flat_order, data=payload)
 
         log.info(
             "job_search: fetched %d jobs from %s for query=%r where=%r",

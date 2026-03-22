@@ -17,6 +17,7 @@ from services.automation.automation_worker import (
     JobDetails,
     Applicant,
 )
+from services.services.email_service import send_email
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,6 +61,27 @@ class ApplicationRequest(BaseModel):
 class ApplicationResponse(BaseModel):
     message: str
     task_id: str
+
+
+async def send_application_started_email(email: str, job_labels: List[str]) -> None:
+    """Send a notification email when the application process has started."""
+    if not email:
+        return
+    try:
+        job_list_html = "".join(f"<li>{label}</li>" for label in job_labels)
+        body = (
+            "Hi there,\n\n"
+            "Your HuntFlow application process has started for the following jobs:\n\n"
+            + "\n".join(f"  - {label}" for label in job_labels)
+            + "\n\nWe will notify you as each application progresses.\n\nGood luck!\n\nThe HuntFlow Team"
+        )
+        await send_email(
+            to=email,
+            subject="Your HuntFlow applications have started",
+            body=body,
+        )
+    except Exception as exc:
+        logger.warning("Failed to send application-started email to %s: %s", email, exc)
 
 
 async def run_application(jobs: List[Job], applicant: Applicant):
@@ -114,6 +136,11 @@ async def apply_to_jobs(
     )
 
     background_tasks.add_task(run_application, jobs, applicant)
+    background_tasks.add_task(
+        send_application_started_email,
+        applicant.email,
+        [j.title + " at " + j.company for j in jobs],
+    )
 
     task_id = f"task_{int(time.time())}"
 
