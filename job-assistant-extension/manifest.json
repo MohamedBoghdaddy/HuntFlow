@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Job Assistant MVP",
+  "version": "0.1.0",
+  "description": "Extract jobs, autofill applications, and track status.",
+  "permissions": ["storage", "tabs", "scripting", "activeTab", "sidePanel"],
+  "host_permissions": ["<all_urls>"],
+  "background": {"service_worker": "service-worker.js", "type": "module"},
+  "action": {"default_title": "Open Job Assistant"},
+  "side_panel": {"default_path": "sidepanel.html"},
+  "options_page": "options.html",
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["portal-adapters.js", "autofill.js", "content-script.js"],
+    "run_at": "document_idle"
+  }]
+}
