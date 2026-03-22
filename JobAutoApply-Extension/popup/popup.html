@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobAutoApply</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <span class="logo-icon">⚡</span>
+      <span class="logo-text">JobAutoApply</span>
+    </div>
+    <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat">
+      <span class="stat-num" id="scrapedCount">0</span>
+      <span class="stat-label">Scraped</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num" id="appliedCount">0</span>
+      <span class="stat-label">Applied</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num" id="dailyCount">0</span>
+      <span class="stat-label">Today</span>
+    </div>
+  </div>
+
+  <!-- Alert Banner -->
+  <div id="captchaAlert" class="alert alert-warning hidden">
+    ⚠️ CAPTCHA detected — tab requires attention
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="toggle-row">
+      <span class="toggle-label">Auto Apply</span>
+      <label class="toggle">
+        <input type="checkbox" id="autoApplyToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">Easy Apply</span>
+      <label class="toggle">
+        <input type="checkbox" id="easyApplyToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">External Apply</span>
+      <label class="toggle">
+        <input type="checkbox" id="externalApplyToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="actions">
+    <button id="scrapeBtn" class="btn btn-primary">🔍 Scrape This Page</button>
+    <button id="fillBtn" class="btn btn-secondary">✏️ Fill Form</button>
+  </div>
+
+  <!-- Job Boards -->
+  <div class="section-title">Job Boards</div>
+  <div class="boards-grid" id="boardsGrid">
+    <!-- dynamically populated -->
+  </div>
+
+  <!-- Recent Jobs -->
+  <div class="section-title">
+    Recent Jobs
+    <button id="clearJobsBtn" class="clear-btn">Clear</button>
+  </div>
+  <div id="jobsList" class="jobs-list">
+    <div class="empty-state">No jobs scraped yet. Browse a job board to start.</div>
+  </div>
+
+  <!-- Profile Status -->
+  <div id="profileStatus" class="profile-status">
+    <span id="profileText">No profile configured</span>
+    <button id="editProfileBtn" class="link-btn">Set up profile →</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

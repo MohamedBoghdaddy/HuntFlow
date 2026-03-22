@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>JobAutoApply — Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; max-width: 700px; margin: 0 auto; padding: 24px 20px; }
+    h1 { font-size: 22px; font-weight: 700; color: #60a5fa; margin-bottom: 6px; }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 0; }
+    .tab { padding: 8px 16px; cursor: pointer; font-size: 13px; font-weight: 500; color: #94a3b8; border-radius: 6px 6px 0 0; border: 1px solid transparent; border-bottom: none; margin-bottom: -1px; }
+    .tab.active { background: #1e293b; color: #60a5fa; border-color: #334155; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+    .card h2 { font-size: 14px; font-weight: 600; color: #94a3b8; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 12px; font-weight: 500; color: #94a3b8; margin-bottom: 4px; }
+    .field input, .field textarea, .field select {
+      width: 100%; padding: 8px 10px; background: #0f172a;
+      border: 1px solid #334155; border-radius: 6px; color: #e2e8f0;
+      font-size: 13px; outline: none; transition: border-color 0.2s;
+    }
+    .field input:focus, .field textarea:focus { border-color: #2563eb; }
+    .field textarea { min-height: 80px; resize: vertical; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn { padding: 9px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-danger { background: #dc2626; color: white; }
+    .save-bar { position: sticky; bottom: 0; background: #0f172a; border-top: 1px solid #334155; padding: 12px 0; margin-top: 16px; display: flex; gap: 10px; align-items: center; }
+    .save-msg { font-size: 12px; color: #4ade80; opacity: 0; transition: opacity 0.3s; }
+    .save-msg.show { opacity: 1; }
+    .captcha-option { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; }
+    .captcha-option input[type="radio"] { accent-color: #2563eb; }
+    .captcha-option label { font-size: 13px; color: #e2e8f0; cursor: pointer; }
+    .upload-area { border: 2px dashed #334155; border-radius: 8px; padding: 16px; text-align: center; color: #64748b; font-size: 12px; cursor: pointer; transition: border-color 0.2s; }
+    .upload-area:hover { border-color: #2563eb; color: #60a5fa; }
+    .file-name { font-size: 12px; color: #4ade80; margin-top: 6px; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #0f172a; }
+    .toggle { position: relative; display: inline-block; width: 36px; height: 20px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #475569; border-radius: 20px; transition: 0.2s; }
+    .slider:before { position: absolute; content: ''; height: 14px; width: 14px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+    input:checked + .slider { background: #2563eb; }
+    input:checked + .slider:before { transform: translateX(16px); }
+  </style>
+</head>
+<body>
+  <h1>⚡ JobAutoApply Settings</h1>
+  <p class="subtitle">Configure your profile, AI keys, and automation preferences</p>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="profile">Profile</div>
+    <div class="tab" data-tab="ai">AI & Captcha</div>
+    <div class="tab" data-tab="automation">Automation</div>
+    <div class="tab" data-tab="resume">Resume</div>
+  </div>
+
+  <!-- PROFILE TAB -->
+  <div id="tab-profile" class="tab-content active">
+    <div class="card">
+      <h2>Personal Information</h2>
+      <div class="field-row">
+        <div class="field"><label>First Name</label><input id="firstName" placeholder="John"></div>
+        <div class="field"><label>Last Name</label><input id="lastName" placeholder="Doe"></div>
+      </div>
+      <div class="field"><label>Email</label><input id="email" type="email" placeholder="john@example.com"></div>
+      <div class="field"><label>Phone</label><input id="phone" placeholder="+1 555 000 0000"></div>
+      <div class="field-row">
+        <div class="field"><label>City</label><input id="city" placeholder="San Francisco"></div>
+        <div class="field"><label>State / Region</label><input id="state" placeholder="CA"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Zip Code</label><input id="zipCode" placeholder="94102"></div>
+        <div class="field"><label>Country</label><input id="country" placeholder="United States"></div>
+      </div>
+      <div class="field"><label>Full Address</label><input id="address" placeholder="123 Main St, San Francisco, CA 94102"></div>
+    </div>
+
+    <div class="card">
+      <h2>Professional</h2>
+      <div class="field-row">
+        <div class="field"><label>Current Title</label><input id="currentTitle" placeholder="Software Engineer"></div>
+        <div class="field"><label>Current Company</label><input id="currentCompany" placeholder="Acme Corp"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Years of Experience</label><input id="yearsExperience" type="number" placeholder="5"></div>
+        <div class="field"><label>Expected Salary (USD)</label><input id="expectedSalary" type="number" placeholder="120000"></div>
+      </div>
+      <div class="field"><label>Skills (comma separated)</label><input id="skills" placeholder="JavaScript, React, Node.js, Python"></div>
+      <div class="field"><label>Professional Summary</label><textarea id="summary" placeholder="Brief professional summary..."></textarea></div>
+    </div>
+
+    <div class="card">
+      <h2>Links & Authorization</h2>
+      <div class="field"><label>LinkedIn URL</label><input id="linkedin" placeholder="https://linkedin.com/in/yourname"></div>
+      <div class="field"><label>GitHub URL</label><input id="github" placeholder="https://github.com/yourname"></div>
+      <div class="field"><label>Portfolio / Website</label><input id="portfolio" placeholder="https://yoursite.com"></div>
+      <div class="toggle-row">
+        <span style="font-size:13px;color:#e2e8f0">Authorized to work (no sponsorship needed)</span>
+        <label class="toggle"><input type="checkbox" id="workAuthorized" checked><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span style="font-size:13px;color:#e2e8f0">Open to remote work</span>
+        <label class="toggle"><input type="checkbox" id="openToRemote" checked><span class="slider"></span></label>
+      </div>
+      <div class="field" style="margin-top:10px"><label>Available Start Date</label><input id="availableDate" placeholder="2 weeks"></div>
+    </div>
+  </div>
+
+  <!-- AI & CAPTCHA TAB -->
+  <div id="tab-ai" class="tab-content">
+    <div class="card">
+      <h2>AI Provider</h2>
+      <div class="field"><label>OpenAI API Key (for GPT-4o captcha + cover letters)</label><input id="openaiKey" type="password" placeholder="sk-..."></div>
+      <div class="field"><label>Google Gemini API Key (fallback)</label><input id="geminiKey" type="password" placeholder="AIza..."></div>
+      <div class="field">
+        <label>AI Model</label>
+        <select id="aiModel">
+          <option value="gpt-4o">GPT-4o (Best)</option>
+          <option value="gpt-4o-mini">GPT-4o Mini (Faster/Cheaper)</option>
+          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>CAPTCHA Strategy</h2>
+      <div class="captcha-option"><input type="radio" name="captchaService" id="captchaAI" value="ai" checked><label for="captchaAI">AI Vision (GPT-4o / Gemini) — best for text & image captchas</label></div>
+      <div class="captcha-option"><input type="radio" name="captchaService" id="captchaAntiCaptcha" value="anticaptcha"><label for="captchaAntiCaptcha">AntiCaptcha Service — best for reCAPTCHA v2 / hCaptcha</label></div>
+      <div class="captcha-option"><input type="radio" name="captchaService" id="captchaManual" value="manual"><label for="captchaManual">Manual — notify me when captcha appears</label></div>
+      <div class="field" style="margin-top:10px"><label>AntiCaptcha API Key</label><input id="antiCaptchaKey" type="password" placeholder="Your anti-captcha.com key"></div>
+    </div>
+  </div>
+
+  <!-- AUTOMATION TAB -->
+  <div id="tab-automation" class="tab-content">
+    <div class="card">
+      <h2>Apply Settings</h2>
+      <div class="toggle-row">
+        <span style="font-size:13px;color:#e2e8f0">Enable Auto Apply</span>
+        <label class="toggle"><input type="checkbox" id="autoApply"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span style="font-size:13px;color:#e2e8f0">Apply to Easy Apply jobs</span>
+        <label class="toggle"><input type="checkbox" id="applyEasyApply" checked><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span style="font-size:13px;color:#e2e8f0">Apply to External jobs (opens apply page)</span>
+        <label class="toggle"><input type="checkbox" id="applyExternal" checked><span class="slider"></span></label>
+      </div>
+      <div class="field-row" style="margin-top:12px">
+        <div class="field"><label>Max Applications / Day</label><input id="maxDailyApps" type="number" value="50" min="1" max="200"></div>
+        <div class="field"><label>Delay between apps (sec)</label><input id="delayMin" type="number" value="5" min="1"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Cover Letter</h2>
+      <div class="field"><label>Default Cover Letter Template</label><textarea id="coverLetterTemplate" style="min-height:120px" placeholder="Dear Hiring Manager,&#10;&#10;I am excited to apply for the [POSITION] role at [COMPANY]..."></textarea></div>
+    </div>
+
+    <div class="card">
+      <h2>Filters</h2>
+      <div class="field"><label>Blacklisted Companies (comma separated)</label><input id="blacklistedCompanies" placeholder="Acme, BadCorp"></div>
+      <div class="field"><label>Required Keywords in Job Title</label><input id="requiredKeywords" placeholder="Engineer, Developer, Senior"></div>
+    </div>
+  </div>
+
+  <!-- RESUME TAB -->
+  <div id="tab-resume" class="tab-content">
+    <div class="card">
+      <h2>Resume Upload</h2>
+      <p style="color:#64748b;font-size:12px;margin-bottom:12px">Your resume is stored locally in the extension. It will be automatically uploaded to application forms.</p>
+      <div class="upload-area" id="resumeUploadArea">
+        📄 Click to upload resume (PDF recommended)
+        <input type="file" id="resumeFile" accept=".pdf,.doc,.docx" style="display:none">
+        <div id="resumeFileName" class="file-name"></div>
+      </div>
+      <div class="field" style="margin-top:10px"><label>Resume File Name</label><input id="resumeFileName2" placeholder="resume.pdf"></div>
+    </div>
+
+    <div class="card">
+      <h2>Cover Letter Upload (optional)</h2>
+      <div class="upload-area" id="coverUploadArea">
+        📝 Click to upload cover letter (PDF)
+        <input type="file" id="coverFile" accept=".pdf" style="display:none">
+        <div id="coverFileName" class="file-name"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="save-bar">
+    <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+    <span class="save-msg" id="saveMsg">✓ Saved!</span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
