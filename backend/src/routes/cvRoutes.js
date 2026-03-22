@@ -1,19 +1,32 @@
+// backend/src/routes/cvRoutes.js
 import express from "express";
 import multer from "multer";
-import authMiddleware from "../middleware/authMiddleware.js";
-import { uploadCv } from "../controllers/cvController.js";
+import { authenticateToken } from "../middleware/authMiddleware.js";
+import {
+  uploadCv,
+  getLatestCv,
+  analyzeCv,
+  generateCoverLetter,
+} from "../controllers/cvController.js";
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: "uploads/",
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
+const upload = multer({
+  dest: "uploads/",
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
-const upload = multer({ storage });
+// ✅ accept common field names to avoid "Unexpected field"
+const cvUploadFields = upload.fields([
+  { name: "file", maxCount: 1 },
+  { name: "cv", maxCount: 1 },
+  { name: "resume", maxCount: 1 },
+  { name: "document", maxCount: 1 },
+]);
 
-router.post("/upload", authMiddleware, upload.single("cv"), uploadCv);
+router.post("/upload", authenticateToken, upload.any(), uploadCv);
+router.get("/latest", authenticateToken, getLatestCv);
+router.post("/analyze", authenticateToken, analyzeCv);
+router.post("/cover-letter", authenticateToken, generateCoverLetter);
 
 export default router;
