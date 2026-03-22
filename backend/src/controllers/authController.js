@@ -1,12 +1,10 @@
-// src/controllers/authController.js 
-// - Stronger validation + consistent errors
-// - Case-insensitive email handling
-// - Safer JWT payload (id + roles)
-// - Optional refresh token flow (cookie) ready, but not required
-// - getMe returns a clean public user shape
-// - Update profile endpoint (useful for your job agent preferences)
+// src/controllers/authController.js
+// Updated + fixed + enhanced
+// Fixes: user.comparePassword is not a function (supports lean/plain objects)
+// Enhancements: consistent validation, optional refresh cookies, safe profile patch, change password, better errors
 
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import config from "../config/index.js";
 
@@ -38,13 +36,30 @@ const publicUser = (u) => ({
   updatedAt: u.updatedAt,
 });
 
+const VALID_PROFILE_KEYS = new Set([
+  "title",
+  "seniority",
+  "locations",
+  "links",
+  "authorization",
+  "salaryExpectation",
+  "preferences",
+]);
+
+function pickProfilePatch(profile) {
+  if (!profile || typeof profile !== "object") return undefined;
+
+  const out = {};
+  for (const [k, v] of Object.entries(profile)) {
+    if (!VALID_PROFILE_KEYS.has(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 function signAccessToken(user) {
   return jwt.sign(
-    {
-      id: user._id,
-      email: user.email,
-      roles: user.roles || ["user"],
-    },
+    { id: user._id, email: user.email, roles: user.roles || ["user"] },
     config.jwtSecret,
     { expiresIn: JWT_EXPIRES_IN },
   );
@@ -53,27 +68,26 @@ function signAccessToken(user) {
 function signRefreshToken(user) {
   if (!config.jwtRefreshSecret) return null;
   return jwt.sign(
-    {
-      id: user._id,
-      tokenType: "refresh",
-    },
+    { id: user._id, tokenType: "refresh" },
     config.jwtRefreshSecret,
     { expiresIn: JWT_REFRESH_EXPIRES_IN },
   );
 }
 
-function setRefreshCookie(res, refreshToken) {
+function setRefreshCookie(req, res, refreshToken) {
   if (!refreshToken) return;
 
-  // Works locally and on prod.
-  // If you're on HTTP locally, secure must be false.
   const isProd = process.env.NODE_ENV === "production";
+  const isHttps =
+    isProd ||
+    String(req.headers["x-forwarded-proto"] || "").toLowerCase() === "https";
+
   res.cookie("refresh_token", refreshToken, {
     httpOnly: true,
     sameSite: isProd ? "none" : "lax",
-    secure: isProd,
+    secure: isHttps,
     path: "/api/auth",
-    maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+    maxAge: 1000 * 60 * 60 * 24 * 30,
   });
 }
 
@@ -82,10 +96,17 @@ function clearRefreshCookie(res) {
 }
 
 function error(res, status, msg, meta) {
-  return res.status(status).json({
-    error: msg,
-    ...(meta ? { meta } : {}),
-  });
+  return res.status(status).json({ error: msg, ...(meta ? { meta } : {}) });
+}
+
+async function verifyPassword(user, candidate) {
+  // Works for:
+  // - real mongoose doc with method
+  // - plain object (lean/aggregate) without method
+  if (user && typeof user.comparePassword === "function") {
+    return user.comparePassword(candidate);
+  }
+  return bcrypt.compare(candidate, user.password);
 }
 
 // ------------ controller ------------
@@ -103,37 +124,29 @@ const authController = {
         return error(res, 400, "Password must be at least 8 characters");
 
       const existing = await User.findOne({ email });
-      if (existing) return error(res, 400, "Email already registered");
+      if (existing) return error(res, 409, "Email already registered");
 
-      // Create user
+      const profilePatch = pickProfilePatch(req.body?.profile);
+
       const user = new User({
         email,
         password,
         name,
         roles: ["user"],
-        profile:
-          req.body?.profile && typeof req.body.profile === "object"
-            ? req.body.profile
-            : undefined,
+        ...(profilePatch ? { profile: profilePatch } : {}),
       });
 
       await user.save();
 
       const token = signAccessToken(user);
-
-      // Optional refresh token cookie (only if jwtRefreshSecret exists)
       const refresh = signRefreshToken(user);
-      if (refresh) setRefreshCookie(res, refresh);
+      if (refresh) setRefreshCookie(req, res, refresh);
 
-      return res.status(201).json({
-        user: publicUser(user),
-        token,
-      });
+      return res.status(201).json({ user: publicUser(user), token });
     } catch (err) {
-      // Handle duplicate key just in case (race condition)
       if (err?.code === 11000)
-        return error(res, 400, "Email already registered");
-      console.error(err);
+        return error(res, 409, "Email already registered");
+      console.error("register error:", err);
       return error(res, 500, "Registration failed");
     }
   },
@@ -146,28 +159,24 @@ const authController = {
       if (!email || !password)
         return error(res, 400, "Email and password are required");
 
+      // IMPORTANT: do NOT add .lean() here
       const user = await User.findOne({ email });
       if (!user) return error(res, 400, "Invalid credentials");
 
-      const isMatch = await user.comparePassword(password);
+      const isMatch = await verifyPassword(user, password);
       if (!isMatch) return error(res, 400, "Invalid credentials");
 
       const token = signAccessToken(user);
-
       const refresh = signRefreshToken(user);
-      if (refresh) setRefreshCookie(res, refresh);
+      if (refresh) setRefreshCookie(req, res, refresh);
 
-      return res.json({
-        user: publicUser(user),
-        token,
-      });
+      return res.json({ user: publicUser(user), token });
     } catch (err) {
-      console.error(err);
+      console.error("login error:", err);
       return error(res, 500, "Login failed");
     }
   },
 
-  // Call this if you enable refresh tokens (cookie-based)
   refresh: async (req, res) => {
     try {
       if (!config.jwtRefreshSecret)
@@ -184,8 +193,10 @@ const authController = {
         return error(res, 401, "Invalid refresh token");
       }
 
-      if (payload?.tokenType !== "refresh")
+      if (payload?.tokenType !== "refresh") {
+        clearRefreshCookie(res);
         return error(res, 401, "Invalid refresh token");
+      }
 
       const user = await User.findById(payload.id);
       if (!user) {
@@ -194,12 +205,12 @@ const authController = {
       }
 
       const token = signAccessToken(user);
-      const refresh = signRefreshToken(user); // rotate
-      if (refresh) setRefreshCookie(res, refresh);
+      const refresh = signRefreshToken(user);
+      if (refresh) setRefreshCookie(req, res, refresh);
 
       return res.json({ token, user: publicUser(user) });
     } catch (err) {
-      console.error(err);
+      console.error("refresh error:", err);
       return error(res, 500, "Refresh failed");
     }
   },
@@ -216,12 +227,11 @@ const authController = {
       if (!user) return error(res, 404, "User not found");
       return res.json({ user: publicUser(user) });
     } catch (err) {
-      console.error(err);
+      console.error("getMe error:", err);
       return error(res, 500, "Unable to fetch user");
     }
   },
 
-  // Useful for HuntFlow: user updates job preferences & profile
   updateMe: async (req, res) => {
     try {
       if (!req.user?.id) return error(res, 401, "Unauthorized");
@@ -229,10 +239,8 @@ const authController = {
       const patch = {};
       if (typeof req.body?.name === "string") patch.name = req.body.name.trim();
 
-      // Only allow safe profile fields
-      if (req.body?.profile && typeof req.body.profile === "object") {
-        patch.profile = req.body.profile;
-      }
+      const profilePatch = pickProfilePatch(req.body?.profile);
+      if (profilePatch) patch.profile = profilePatch;
 
       const user = await User.findByIdAndUpdate(req.user.id, patch, {
         new: true,
@@ -242,8 +250,39 @@ const authController = {
       if (!user) return error(res, 404, "User not found");
       return res.json({ user: publicUser(user) });
     } catch (err) {
-      console.error(err);
+      console.error("updateMe error:", err);
       return error(res, 500, "Unable to update user");
+    }
+  },
+
+  // Optional: change password (handy for MVP)
+  changePassword: async (req, res) => {
+    try {
+      if (!req.user?.id) return error(res, 401, "Unauthorized");
+
+      const currentPassword = String(req.body?.currentPassword || "");
+      const newPassword = String(req.body?.newPassword || "");
+
+      if (!currentPassword || !newPassword) {
+        return error(res, 400, "currentPassword and newPassword are required");
+      }
+      if (!isStrongEnoughPassword(newPassword)) {
+        return error(res, 400, "Password must be at least 8 characters");
+      }
+
+      const user = await User.findById(req.user.id);
+      if (!user) return error(res, 404, "User not found");
+
+      const ok = await verifyPassword(user, currentPassword);
+      if (!ok) return error(res, 400, "Invalid current password");
+
+      user.password = newPassword; // pre-save hook will hash
+      await user.save();
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("changePassword error:", err);
+      return error(res, 500, "Unable to change password");
     }
   },
 };

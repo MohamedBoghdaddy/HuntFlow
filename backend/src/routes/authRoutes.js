@@ -19,4 +19,6 @@ router.post("/logout", authController.logout);
 router.get("/me", requireAuth, authController.getMe);
 router.patch("/me", requireAuth, authController.updateMe);
 
+router.post("/change-password", requireAuth, authController.changePassword);
+
 export default router;
