@@ -49,6 +49,7 @@ function NavBar() {
       { label: "Discover Jobs", to: "/jobs" },
       { label: "Automation Loop", to: "/automation-loop" },
       { label: "Career Coach", to: "/career-coach" },
+      { label: "Cover Letter", to: "/cover-letter" },
       { label: "Applications", to: "/applications" },
       { label: "Profile", to: "/profile" },
     ],

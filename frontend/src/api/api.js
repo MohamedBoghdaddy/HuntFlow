@@ -132,6 +132,8 @@ export const api = {
     },
     jobs: {
       sync: () => nodeClient.post("/jobs/sync"),
+      searchIngest: (payload) => nodeClient.post("/jobs/search-ingest", payload),
+      match: (jobs) => nodeClient.post("/jobs/match", { jobs }),
     },
     profile: {
       get: () => nodeClient.get("/profile"),
@@ -153,6 +155,7 @@ export const api = {
       enhance: (payload) => pyClient.post("/cv/enhance", payload),
       resume: (payload) => pyClient.post("/cv/resume", payload),
       coach: (payload) => pyClient.post("/cv/coach", payload),
+      coverLetter: (payload) => nodeClient.post("/cv/cover-letter", payload),
     },
   },
 };

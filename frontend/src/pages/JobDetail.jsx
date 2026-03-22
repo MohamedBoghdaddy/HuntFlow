@@ -55,25 +55,24 @@ function JobDetail() {
     posted_at: j?.posted_at || null,
   });
 
-  const handleSave = async () => {
-    try {
-      const internalId = getInternalJobId(job);
+ const handleSave = async () => {
+   try {
+     const internalId = getInternalJobId(job);
 
-      if (internalId) {
-        await api.node.applications.create({ jobId: internalId });
-      } else {
-        await api.node.applications.create({
-          externalJob: buildExternalJobPayload(job),
-        });
-      }
+     if (internalId) {
+       await api.node.applications.create({ jobId: internalId });
+     } else {
+       await api.node.applications.create({
+         jobData: buildExternalJobPayload(job), // ✅ rename externalJob -> jobData
+       });
+     }
 
-      alert("Job saved to your pipeline");
-    } catch (err) {
-      console.error("Failed to save application", err);
-      alert(normalizeApiError(err));
-    }
-  };
-
+     alert("Job saved to your pipeline");
+   } catch (err) {
+     console.error("Failed to save application", err);
+     alert(normalizeApiError(err));
+   }
+ };
   const handleApply = async () => {
     const url = job?.apply_url || job?.job_url || job?.url;
     if (url) {
